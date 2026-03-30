@@ -88,7 +88,10 @@ export default function WishlistScreen({ navigation }: any) {
 
     // Verileri Yükle
     const loadWishlist = async () => {
-        if (!selectedGroupId) return;
+        if (!selectedGroupId) {
+            setPlaces([]);
+            return;
+        }
         try {
             setLoading(true);
             // PlacesController içindeki Getgroup/{groupId}
@@ -96,8 +99,14 @@ export default function WishlistScreen({ navigation }: any) {
             // Backend'den dönen listeden sadece 'Wishlist' statusundekileri ayıkla
             const wishlistData = response.data.data.filter((p: any) => p.status === "Wishlist" || p.status === 1);
             setPlaces(wishlistData);
-        } catch (err) {
-            console.log("Wishlist Load Error:", err);
+        } catch (err: any) {
+                if (err.response?.status === 403 || err.response?.status === 401) {
+                    setPlaces([]);
+                } else {
+                    Alert.alert("Hata", getApiErrorMessage(err));
+                    console.log("Wishlist Load Error:", err);
+                }
+
         } finally {
             setLoading(false);
             setRefreshing(false);

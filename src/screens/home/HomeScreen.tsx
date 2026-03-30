@@ -132,13 +132,18 @@ export default function HomeScreen({ navigation }: any) {
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
     const load = async () => {
-        if (!selectedGroupId) return;
+        if (!selectedGroupId) {
+            setPlaces([]);
+            return;
+        }
         try {
             setLoading(true);
             const data = await getPlacesByGroup(selectedGroupId);
             setPlaces(data);
-        } catch (err) {
-            Alert.alert("Error", getApiErrorMessage(err));
+        } catch (err: any) {
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                setPlaces([]); }
+            else Alert.alert("Error", getApiErrorMessage(err));
         } finally {
             setLoading(false);
         }

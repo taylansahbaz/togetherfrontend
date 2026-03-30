@@ -1,7 +1,9 @@
+import { getApiErrorMessage } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Keyboard,
   Platform,
@@ -14,7 +16,6 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-
 import { getMapPlaces } from "../../api/maps";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
@@ -41,7 +42,10 @@ export default function MapScreen({ navigation }: any) {
   const [activeFilter, setActiveFilter] = useState("All");
 
   const loadMapData = async () => {
-    if (!selectedGroupId) return;
+    if (!selectedGroupId) {
+      setAllPlaces([]);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -59,8 +63,12 @@ export default function MapScreen({ navigation }: any) {
         setSelectedPlace(null);
         fitToPlaces(validPlaces);
       }
-    } catch (error) {
-      console.log("Map data fetch error:", error);
+    } catch ( err: any) {
+     if (err.response?.status === 403 || err.response?.status === 401) {
+            setAllPlaces([]);
+        } else {
+            Alert.alert("Hata", getApiErrorMessage(err));
+        }
     } finally {
       setLoading(false);
     }

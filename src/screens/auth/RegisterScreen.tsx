@@ -68,7 +68,10 @@ export default function RegisterScreen({ navigation }: any) {
     try {
       setError("");
       setLoading(true);
+     // 1. AuthContext üzerinden backend'e kayıt isteğini atıyoruz
       await register({ name: name.trim(), email: email.trim(), password });
+      // İşlem hata vermeden buraya kadar geldiyse kayıt başarılı demektir. Doğrulama ekranına yönlendiriyoruz:
+      navigation.navigate("VerifyEmail", { email: email.trim() });
     } catch (err) {
       // Backend'den (helpers.ts üzerinden) gelen hatayı yakala ve ekranda göster
       const message = getApiErrorMessage(err);

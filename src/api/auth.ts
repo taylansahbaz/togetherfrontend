@@ -51,3 +51,8 @@ export async function changePassword(payload: { currentPassword: string; newPass
 export async function deleteAccount(): Promise<void> {
     await api.delete("/auth/delete-account");
 }
+
+export const verifyEmail = async (email: string, code: string) => {
+    const response = await api.post("/auth/verify-email", { email, code });
+    return response.data; 
+};

@@ -12,8 +12,9 @@ interface AuthContextType {
     register: (payload: RegisterRequest) => Promise<void>;
     logout: () => Promise<void>;
     bootstrap: () => Promise<void>;
-    // YENİ: Uygulama içi anlık güncelleme fonksiyonu
     updateUser: (userData: Partial<User>) => void; 
+    // YENİ: E-posta doğrulamasından sonra gelen Token ile direkt içeri girmek için
+    authenticateWithToken: (newToken: string) => Promise<void>; 
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,11 +54,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.user);
     };
 
+    // 🛠️ DÜZELTİLEN YER: Artık sadece API'ye kayıt isteği atıyor, Token beklemiyor!
     const register = async (payload: RegisterRequest) => {
-        const result = await registerApi(payload);
-        await storage.setToken(result.token);
-        setToken(result.token);
-        setUser(result.user);
+        await registerApi(payload);
+    };
+
+    // 🚀 YENİ EKLENEN YER: VerifyEmail ekranı kodu doğrulayınca bunu çağıracak
+    const authenticateWithToken = async (newToken: string) => {
+        await storage.setToken(newToken);
+        setToken(newToken);
+        
+        // Token'ı kaydettik, şimdi bu token ile backend'den güncel kullanıcı bilgilerini çekelim
+        try {
+            const me = await getMe();
+            setUser(me);
+        } catch (error) {
+            console.log("Kullanıcı bilgileri çekilemedi:", error);
+        }
     };
 
     const logout = async () => {
@@ -67,7 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
     };
 
-    // YENİ: Sadece arayüzdeki (State) kullanıcı bilgilerini ezerek günceller
     const updateUser = (userData: Partial<User>) => {
         setUser((prevUser) => (prevUser ? { ...prevUser, ...userData } : null));
     };
@@ -87,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logout,
             bootstrap,
             updateUser, 
+            authenticateWithToken, // Dışarıya açtık
         }),
         [user, token, isLoading]
     );
