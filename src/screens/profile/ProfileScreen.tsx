@@ -127,7 +127,6 @@ export default function ProfileScreen() {
                         </View>
                         <View style={styles.menuTextContainer}>
                             <Text style={styles.menuTitle}>My Groups & Partners</Text>
-                            <Text style={styles.menuSubtitle}>Manage who you share memories with</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
                     </TouchableOpacity>
@@ -140,7 +139,6 @@ export default function ProfileScreen() {
                         </View>
                         <View style={styles.menuTextContainer}>
                             <Text style={styles.menuTitle}>Account Settings</Text>
-                            <Text style={styles.menuSubtitle}>Change password, edit profile</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
                     </TouchableOpacity>

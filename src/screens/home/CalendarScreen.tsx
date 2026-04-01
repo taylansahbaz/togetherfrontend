@@ -8,14 +8,15 @@ import {
     Pressable,
     SafeAreaView,
     ScrollView,
+    StyleSheet,
     Text,
-    View,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 
-import { getPlacesByGroup } from "../../api/places";
-import { useSelectedGroup } from "../../hooks/useSelectedGroup";
-import { Place } from "../../types/place";
+// YENİ: Artık sadece seçili grubu değil, tüm takvimi getiren fonksiyonu kullanıyoruz
+import { getMyCalendarPlaces } from "../../api/places";
 import { getApiErrorMessage } from "../../utils/helpers";
 
 LocaleConfig.locales['tr'] = {
@@ -27,7 +28,7 @@ LocaleConfig.locales['tr'] = {
 };
 LocaleConfig.defaultLocale = 'tr';
 
-// YENİ: Open-Meteo hava durumu kodlarını İkonlara çeviren yardımcı fonksiyon
+// Open-Meteo hava durumu kodlarını İkonlara çeviren yardımcı fonksiyon
 const getWeatherDetails = (weatherCode: number) => {
     if (weatherCode === 0) return { icon: "sunny", color: "#fcbebe", text: "Açık" };
     if (weatherCode >= 1 && weatherCode <= 3) return { icon: "partly-sunny", color: "#64748b", text: "Parçalı Bulutlu" };
@@ -39,103 +40,44 @@ const getWeatherDetails = (weatherCode: number) => {
 };
 
 export default function CalendarScreen({ navigation }: any) {
-    const { selectedGroupId } = useSelectedGroup();
-    const [places, setPlaces] = useState<Place[]>([]);
+    // any kullanarak yeni eklenen groupColor'ın TypeScript hatası vermesini engelliyoruz
+    const [places, setPlaces] = useState<any[]>([]); 
     const [loading, setLoading] = useState(false);
     
     const todayStr = new Date().toISOString().split("T")[0];
     const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
-    // YENİ: Hava durumu state'leri
+    // Hava durumu state'leri
     const [weather, setWeather] = useState<any>(null);
     const [loadingWeather, setLoadingWeather] = useState(false);
 
     const loadPlaces = async () => {
-        if (!selectedGroupId) {
-        setPlaces([]);
-        return;
-    }
         try {
             setLoading(true);
-            const data = await getPlacesByGroup(selectedGroupId);
-            setPlaces(data);
+            // YENİ: Backend'den tüm mekanları çekiyoruz
+            const data = await getMyCalendarPlaces();
+            const placesArray = Array.isArray(data) ? data : (data?.data || []);
+            setPlaces(placesArray);
         } catch (err: any) {
-           if (err.response?.status === 403 || err.response?.status === 401) {
-            setPlaces([]);
-        } else {
             Alert.alert("Hata", getApiErrorMessage(err));
-        }
         } finally {
             setLoading(false);
         }
     };
 
-    useFocusEffect(useCallback(() => { loadPlaces(); }, [selectedGroupId]));
-
-    const markedDates = useMemo(() => {
-        const marks: any = {};
-
-        places.forEach(place => {
-            if (place.visitDate) {
-                const dateStr = place.visitDate.split('T')[0];
-                const isVisited = place.status === 2 || place.status === "Visited";
-                const dayColor = isVisited ? '#2F7E8D' : '#fcbebe';
-
-                marks[dateStr] = {
-                    customStyles: {
-                        container: {
-                            backgroundColor: dayColor,
-                            borderRadius: 18, 
-                            width: 36,
-                            height: 36,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        },
-                        text: { color: 'white', fontWeight: 'bold' }
-                    }
-                };
-            }
-        });
-
-        if (marks[selectedDate]) {
-            marks[selectedDate] = {
-                customStyles: {
-                    container: {
-                        ...marks[selectedDate].customStyles.container, 
-                        borderWidth: 2,
-                        borderColor: '#102a43', 
-                    },
-                    text: { color: 'white', fontWeight: 'bold' }
-                }
-            };
-        } else {
-            marks[selectedDate] = {
-                customStyles: {
-                    container: {
-                        backgroundColor: 'rgba(47, 126, 141, 0.1)',
-                        borderWidth: 1, borderColor: '#2F7E8D', borderRadius: 18,
-                        width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
-                    },
-                    text: { color: '#2F7E8D', fontWeight: 'bold' }
-                }
-            };
-        }
-
-        return marks;
-    }, [places, selectedDate]);
+    useFocusEffect(useCallback(() => { loadPlaces(); }, []));
 
     const selectedDayPlaces = useMemo(() => {
         return places.filter(place => place.visitDate && place.visitDate.split('T')[0] === selectedDate);
     }, [places, selectedDate]);
 
-    // YENİ: Seçili gün değiştiğinde Open-Meteo'dan hava durumunu çeken Hook
+    // Seçili gün değiştiğinde Open-Meteo'dan hava durumunu çeken Hook
     useEffect(() => {
         const fetchWeather = async () => {
             setLoadingWeather(true);
             setWeather(null);
 
             try {
-                // Eğer o güne ait bir mekan varsa onun koordinatlarını al, yoksa varsayılan olarak İstanbul'u kullan
                 let lat = 41.0082; // İstanbul Latitude
                 let lng = 28.9784; // İstanbul Longitude
 
@@ -147,8 +89,6 @@ export default function CalendarScreen({ navigation }: any) {
                     }
                 }
 
-                // Open-Meteo Historical / Forecast API birleşimi
-                // (Günlük max sıcaklık ve hava kodu istenir)
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weathercode,temperature_2m_max&timezone=auto&start_date=${selectedDate}&end_date=${selectedDate}`;
                 
                 const response = await fetch(url);
@@ -167,17 +107,9 @@ export default function CalendarScreen({ navigation }: any) {
         };
 
         fetchWeather();
-    }, [selectedDate, places]); // places'i de ekliyoruz ki veriler yüklendikten sonra koordinat hesaplansın
+    }, [selectedDate, places]);
 
     const formattedSelectedDate = new Date(selectedDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
-
-    if (!selectedGroupId) {
-        return (
-            <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <Text style={{ fontSize: 16, color: "#64748b" }}>Lütfen önce bir grup seçin.</Text>
-            </SafeAreaView>
-        );
-    }
 
     return (
         <View style={{ flex: 1 }}>
@@ -188,7 +120,7 @@ export default function CalendarScreen({ navigation }: any) {
                         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24, paddingTop: 20, paddingBottom: 10 }}>
                             <View>
                                 <Text style={{ fontSize: 32, fontWeight: "800", color: "#102a43", marginTop: 4 }}>
-                                    Takvim
+                                    Takvimim
                                 </Text>
                             </View>
                         </View>
@@ -200,8 +132,6 @@ export default function CalendarScreen({ navigation }: any) {
                                 
                                 <View style={{ marginHorizontal: 20, marginTop: 10, borderRadius: 24, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 }}>
                                     <Calendar
-                                        markingType={'custom'}
-                                        markedDates={markedDates}
                                         onDayPress={(day: any) => setSelectedDate(day.dateString)}
                                         theme={{
                                             backgroundColor: '#ffffff', calendarBackground: '#ffffff',
@@ -211,16 +141,58 @@ export default function CalendarScreen({ navigation }: any) {
                                             textDayFontWeight: '500', textMonthFontWeight: '800',
                                             textDayHeaderFontWeight: '600', textDayFontSize: 15, textMonthFontSize: 18,
                                         }}
+                                        // YENİ: MARKED DATES YERİNE KENDİ TASARIMIMIZI ÇİZİYORUZ
+                                        dayComponent={({ date, state }: any) => {
+                                            const dayPlaces = places.filter(p => p.visitDate && p.visitDate.split('T')[0] === date.dateString);
+                                            const isSelected = selectedDate === date.dateString;
+                                            
+                                            if (dayPlaces.length > 0) {
+                                                const firstEvent = dayPlaces[0]; 
+                                                const isVisited = firstEvent.status === 2 || firstEvent.status === "Visited"; 
+                                                const groupColor = firstEvent.groupColor || "#2F7E8D"; // Dinamik Renk
+
+                                                return (
+                                                    <Pressable onPress={() => setSelectedDate(date.dateString)}>
+                                                        <View style={[{ width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 }, isSelected && { borderWidth: 2, borderColor: '#102a43' }]}>
+                                                            {isVisited ? (
+                                                                // GİDİLEN: Yuvarlak
+                                                                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: groupColor, alignItems: 'center', justifyContent: 'center' }}>
+                                                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>{date.day}</Text>
+                                                                </View>
+                                                            ) : (
+                                                                // PLAN: Kalp
+                                                                <View style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+                                                                    <Ionicons name="heart" size={38} color={groupColor} style={{ position: 'absolute' }} />
+                                                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13, zIndex: 1, marginTop: -2 }}>{date.day}</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                    </Pressable>
+                                                );
+                                            }
+
+                                            // BOŞ GÜNLER
+                                            return (
+                                                <Pressable onPress={() => setSelectedDate(date.dateString)}>
+                                                    <View style={[{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 }, isSelected && { backgroundColor: 'rgba(47, 126, 141, 0.1)', borderWidth: 1, borderColor: '#2F7E8D' }]}>
+                                                        <Text style={{ color: state === 'disabled' ? '#cbd5e1' : '#102a43', fontWeight: isSelected ? 'bold' : 'normal' }}>
+                                                            {date.day}
+                                                        </Text>
+                                                    </View>
+                                                </Pressable>
+                                            );
+                                        }}
                                     />
                                 </View>
 
+                                {/* YENİ: BİLGİLENDİRME (LEGEND) KISMI ŞEKİLLERE GÖRE GÜNCELLENDİ */}
                                 <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 16, marginBottom: 20 }}>
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#2F7E8D" }} />
+                                        <Ionicons name="ellipse" size={14} color="#2F7E8D" />
                                         <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>Gidilenler</Text>
                                     </View>
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#fcbebe" }} />
+                                        <Ionicons name="heart" size={16} color="#2F7E8D" />
                                         <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>Wish Day (Planlar)</Text>
                                     </View>
                                 </View>
@@ -232,7 +204,6 @@ export default function CalendarScreen({ navigation }: any) {
                                             {formattedSelectedDate}
                                         </Text>
 
-                                        {/* YENİ: Hava Durumu Rozeti */}
                                         {loadingWeather ? (
                                             <ActivityIndicator size="small" color="#94a3b8" />
                                         ) : weather ? (
@@ -255,6 +226,8 @@ export default function CalendarScreen({ navigation }: any) {
                                     ) : (
                                         selectedDayPlaces.map(place => {
                                             const isVisited = place.status === 2 || place.status === "Visited";
+                                            const groupColor = place.groupColor || "#2F7E8D"; // Liste rengi de dinamik
+
                                             return (
                                                 <Pressable 
                                                     key={place.id}
@@ -262,16 +235,17 @@ export default function CalendarScreen({ navigation }: any) {
                                                     style={{ 
                                                         flexDirection: "row", backgroundColor: "#ffffff", borderRadius: 20, padding: 16, marginBottom: 12, 
                                                         shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-                                                        borderLeftWidth: 5, borderLeftColor: isVisited ? "#2F7E8D" : "#fcbebe"
+                                                        borderLeftWidth: 5, borderLeftColor: groupColor // Kenarlık rengi dinamik
                                                     }}
                                                 >
-                                                    <View style={{ backgroundColor: isVisited ? "#E8F4F6" : "#FFFBEB", width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 16 }}>
-                                                        <Ionicons name={isVisited ? "checkmark-done" : "star"} size={24} color={isVisited ? "#2F7E8D" : "#fcbebe"} />
+                                                    <View style={{ backgroundColor: `${groupColor}20`, width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 16 }}>
+                                                        <Ionicons name={isVisited ? "checkmark-done" : "star"} size={24} color={groupColor} />
                                                     </View>
                                                     <View style={{ flex: 1, justifyContent: "center" }}>
                                                         <Text style={{ fontSize: 16, fontWeight: "800", color: "#102a43" }} numberOfLines={1}>
                                                             {place.title}
                                                         </Text>
+                                                        {/* SENİN EKLENTİN: Şehir ve Kategori Birlikte */}
                                                         <Text style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
                                                             {place.city ? `${place.city} • ` : ''}{place.category}
                                                         </Text>
@@ -282,7 +256,24 @@ export default function CalendarScreen({ navigation }: any) {
                                         })
                                     )}
                                 </View>
-                                
+                                <View style={styles.quickActionContainer}>
+                                <TouchableOpacity 
+                                    style={[styles.quickActionButton, { backgroundColor: "#50d7e0e1" }]} 
+                                    // Yönlendirme isimlerini kendi navigasyonuna göre ayarlayabilirsin
+                                    onPress={() => navigation.navigate("CreatePlace", { defaultDate: selectedDate , initialStatus: 2})}
+                                >
+                                    <Ionicons name="location" size={20} color="#252f9c" />
+                                    <Text style={styles.quickActionText}>Mekan Ekle</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity 
+                                    style={[styles.quickActionButton, { backgroundColor: "#fcbebe" }]} 
+                                    onPress={() => navigation.navigate("CreateWishlist", { defaultDate: selectedDate })}
+                                >
+                                    <Ionicons name="heart" size={20} color="#ff5656" />
+                                    <Text style={[styles.quickActionText, { color: "#ff5656" }]}>Wish Day Planla</Text>
+                                </TouchableOpacity>
+                            </View>
                             </ScrollView>
                         )}
                     </SafeAreaView>
@@ -291,3 +282,31 @@ export default function CalendarScreen({ navigation }: any) {
         </View>
     );
 }
+const styles = StyleSheet.create({
+    // --- HIZLI AKSİYON BUTONLARI STİLLERİ ---
+    quickActionContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginTop: 24,
+        marginHorizontal: 24, // Üstteki liste ile aynı hizada olması için
+        gap: 12, 
+    },
+    quickActionButton: {
+        flex: 1, 
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 14,
+        borderRadius: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    quickActionText: {
+        fontWeight: "700",
+        fontSize: 14,
+        marginLeft: 8, 
+    },
+});

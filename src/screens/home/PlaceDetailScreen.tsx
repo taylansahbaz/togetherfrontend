@@ -1,18 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
+    FlatList,
     Image,
+    Modal,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from "react-native";
-
+import { deletePlacePhoto } from "../../api/photos";
 let MapView: any = null;
 let Marker: any = null;
 let PROVIDER_GOOGLE: any = null;
@@ -25,22 +29,30 @@ if (Platform.OS !== "web") {
 }
 
 // YENİ: deletePlace eklendi
+import CustomActionSheet from "@/src/components/common/CustomActionSheet";
+import CustomAlert from "@/src/components/common/CustomAlert";
 import { deletePlace, getPlaceDetail } from "../../api/places";
 import { markPlaceAsVisited } from "../../api/wishlist";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import ReviewCard from "../../components/place/ReviewCard";
-import StatusBadge from "../../components/place/StatusBadge";
 import { PlaceDetailAggregate } from "../../types/place";
 import { formatDate } from "../../utils/date";
 import { getApiErrorMessage } from "../../utils/helpers";
 
 export default function PlaceDetailScreen({ route, navigation }: any) {
     const { placeId } = route.params;
-
+    const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
+    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
     const [detail, setDetail] = useState<PlaceDetailAggregate | null>(null);
     const [loading, setLoading] = useState(true);
     const [markingVisited, setMarkingVisited] = useState(false);
-
+    const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+    const [isViewerVisible, setIsViewerVisible] = useState(false);
+    const [viewerIndex, setViewerIndex] = useState(0);
+    const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
+    const [isPlaceDeleteModalVisible, setIsPlaceDeleteModalVisible] = useState(false);
+    const screenWidth = Dimensions.get("window").width;
+    const headerSliderRef = useRef<FlatList<any>>(null);
+    const viewerSliderRef = useRef<FlatList<any>>(null);
     const load = async () => {
         try {
             setLoading(true);
@@ -74,55 +86,87 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
     };
 
     // --- YENİ: MEKANI SİLME İŞLEMLERİ ---
-    const confirmDeletePlace = () => {
-        Alert.alert(
-            "Emin misiniz?",
-            "Bu mekanı tamamen silmek istediğinize emin misiniz? Fotoğraflar ve yorumlar da silinecektir.",
-            [
-                { text: "İptal", style: "cancel" },
-                {
-                    text: "Sil",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            setLoading(true);
-                            await deletePlace(placeId);
-                            Alert.alert("Başarılı", "Mekan silindi.");
-                            navigation.navigate("HomeTab"); // Silindikten sonra ana sayfaya dön
-                        } catch (err) {
-                            Alert.alert("Hata", getApiErrorMessage(err));
-                            setLoading(false);
-                        }
-                    }
-                }
-            ]
-        );
+    const handleDeletePlacePress = () => {
+    setIsPlaceDeleteModalVisible(true);
     };
 
-    const showOptions = () => {
-        Alert.alert(
-            "Mekan Ayarları",
-            "Bu mekanla ilgili ne yapmak istiyorsunuz?",
-            [
-                { 
-                    text: "Mekanı Düzenle", 
-                    onPress: () => navigation.navigate("CreatePlace", { 
-                        editPlaceId: placeId, 
-                        placeData: detail 
-                    }) 
-                },
-                { text: "Mekanı Sil", style: "destructive", onPress: confirmDeletePlace },
-                { text: "İptal", style: "cancel" }
-            ]
-        );
+    // 2. Modaldaki "Sil" butonuna basınca çalışacak asıl işlem
+    const onConfirmDeletePlace = async () => {
+        try {
+            setIsPlaceDeleteModalVisible(false); // Modalı hemen kapat
+            setLoading(true);
+            
+            await deletePlace(placeId); // API çağrısı
+            
+            // Başarılı uyarısını da istersen CustomAlert ile yapabilirsin 
+            // ama goBack yapacağımız için hızlıca geçebiliriz
+            navigation.goBack(); 
+        } catch (err) {
+            setLoading(false);
+            Alert.alert("Hata", getApiErrorMessage(err));
+        }
     };
-    const renderStars = (ratingOutOf10: number) => {
-        const starCount = Math.round(ratingOutOf10 / 2);
+
+    const actionOptions = [
+        { 
+            label: "Mekanı Düzenle", 
+            icon: "create-outline", 
+            onPress: () => navigation.navigate("CreatePlace", { editPlaceId: placeId, placeData: detail }) 
+        },
+        { 
+            label: "Mekanı Sil", 
+            icon: "trash-outline", 
+            isDestructive: true, 
+            onPress: () => handleDeletePlacePress() // Daha önce yaptığımız CustomAlert'i tetikler
+        },
+    ];
+    const handleDeletePhotoPress = (photoId: string) => {
+    setPhotoToDelete(photoId);
+    setIsDeleteModalVisible(true);
+    };
+
+// 2. Asıl silme işlemini yapan fonksiyon
+    const confirmDeletePhoto = async () => {
+        if (!photoToDelete) return;
+
+        try {
+            setIsDeleteModalVisible(false); // Modalı hemen kapat
+            setLoading(true);
+            
+            await deletePlacePhoto(photoToDelete); // Servis çağrısı
+            await load(); // Listeyi yenile
+            
+            setPhotoToDelete(null); // ID'yi temizle
+        } catch (err) {
+            Alert.alert("Hata", getApiErrorMessage(err));
+            setLoading(false);
+        }
+    };
+   const renderAccurateStars = (ratingOutOf10: number | null) => {
+        // Puan yoksa 5 tane gri, boş yıldız göster
+        if (ratingOutOf10 === null || ratingOutOf10 === 0) {
+            return (
+                <View style={{ flexDirection: "row", marginTop: 4 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <Ionicons key={i} name="star-outline" size={16} color="#cbd5e1" style={{ marginRight: 2 }} />
+                    ))}
+                </View>
+            );
+        }
+
+        // Puan varsa 5 üzerinden hesapla (Örn: 9/2 = 4.5)
+        const ratingOutOf5 = ratingOutOf10 / 2;
         return (
             <View style={{ flexDirection: "row", marginTop: 4 }}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <Ionicons key={i} name={i < starCount ? "star" : "star-outline"} size={14} color="#F59E0B" style={{ marginRight: 2 }} />
-                ))}
+                {Array.from({ length: 5 }).map((_, i) => {
+                    if (ratingOutOf5 >= i + 1) {
+                        return <Ionicons key={i} name="star" size={16} color="#F59E0B" style={{ marginRight: 2 }} />;
+                    } else if (ratingOutOf5 >= i + 0.5) {
+                        return <Ionicons key={i} name="star-half" size={16} color="#F59E0B" style={{ marginRight: 2 }} />;
+                    } else {
+                        return <Ionicons key={i} name="star-outline" size={16} color="#F59E0B" style={{ marginRight: 2 }} />;
+                    }
+                })}
             </View>
         );
     };
@@ -147,7 +191,6 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
 
     const myRating = typeof currentUserReview?.rating === "number" ? currentUserReview.rating : null;
     const groupAverage = typeof averageRating === "number" ? averageRating : 0;
-    const coverImageUrl = photos && photos.length > 0 ? (photos[0] as any).imageUrl : null;
 
     return (
         <View style={styles.mainContainer}>
@@ -155,26 +198,113 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                 
                 {/* 1. KAPAK FOTOĞRAFI & BUTONLAR */}
                 <View style={styles.headerCover}>
-                    {coverImageUrl ? (
-                        <Image source={{ uri: coverImageUrl }} style={styles.coverImage} resizeMode="cover" />
+                    {photos && photos.length > 0 ? (
+                        <>
+                            <FlatList
+                                ref={headerSliderRef}
+                                data={photos}
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                keyExtractor={(item: any, index) => item.id ?? String(index)}
+                                onMomentumScrollEnd={(e) => {
+                                    const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+                                    setCurrentPhotoIndex(index);
+                                }}
+                                renderItem={({ item }: any) => (
+                                    <Pressable
+                                        onPress={() => {
+                                            const index = photos.findIndex((p: any) => p.id === item.id);
+                                            setViewerIndex(index >= 0 ? index : 0);
+                                            setIsViewerVisible(true);
+                                        }}
+                                    >
+                                        <Image
+                                            source={{ uri: item.imageUrl }}
+                                            style={[styles.coverImage, { width: screenWidth }]}
+                                            resizeMode="cover"
+                                        />
+                                    </Pressable>
+                                )}
+                            />
+
+                            {photos.length > 1 && (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.sliderNavButton, styles.sliderNavLeft]}
+                                        onPress={() => {
+                                            const newIndex = Math.max(currentPhotoIndex - 1, 0);
+                                            headerSliderRef.current?.scrollToIndex({ index: newIndex, animated: true });
+                                            setCurrentPhotoIndex(newIndex);
+                                        }}
+                                    >
+                                        <Ionicons name="chevron-back" size={22} color="#102a43" />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[styles.sliderNavButton, styles.sliderNavRight]}
+                                        onPress={() => {
+                                            const newIndex = Math.min(currentPhotoIndex + 1, photos.length - 1);
+                                            headerSliderRef.current?.scrollToIndex({ index: newIndex, animated: true });
+                                            setCurrentPhotoIndex(newIndex);
+                                        }}
+                                    >
+                                        <Ionicons name="chevron-forward" size={22} color="#102a43" />
+                                    </TouchableOpacity>
+
+                                    <View style={styles.paginationWrapper}>
+                                        {photos.map((_: any, index: number) => (
+                                            <View
+                                                key={index}
+                                                style={[
+                                                    styles.paginationDot,
+                                                    currentPhotoIndex === index && styles.paginationDotActive
+                                                ]}
+                                            />
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+                        </>
                     ) : (
                         <View style={styles.noCoverPlaceholder}>
                             <Ionicons name="image-outline" size={48} color="rgba(255,255,255,0.4)" />
                             <Text style={styles.noCoverText}>No photo yet</Text>
                         </View>
                     )}
-                    
-                    {/* Geri Butonu */}
-                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <Ionicons name="arrow-back" size={24} color="#102a43" />
-                    </TouchableOpacity>
-
-                    {/* YENİ: Seçenekler (Ayarlar) Butonu */}
-                    <TouchableOpacity style={styles.optionsButton} onPress={showOptions}>
+                    <TouchableOpacity style={styles.optionsButton} onPress={() => setIsActionSheetVisible(true)}>
                         <Ionicons name="ellipsis-vertical" size={24} color="#102a43" />
                     </TouchableOpacity>
                 </View>
-
+                <CustomAlert 
+                    visible={isDeleteModalVisible}
+                    type="danger"
+                    title="Fotoğrafı Sil"
+                    message="Bu fotoğrafı kalıcı olarak silmek istediğinize emin misiniz?"
+                    confirmText="Sil"
+                    cancelText="Vazgeç"
+                    onConfirm={confirmDeletePhoto}
+                    onCancel={() => {
+                        setIsDeleteModalVisible(false);
+                        setPhotoToDelete(null);
+                    }}
+                />
+                <CustomAlert 
+                    visible={isPlaceDeleteModalVisible}
+                    type="danger"
+                    title="Mekanı Sil"
+                    message="Bu mekanı tamamen silmek istediğinize emin misiniz? Fotoğraflar ve yorumlar da kalıcı olarak silinecektir."
+                    confirmText="Mekanı Sil"
+                    cancelText="Vazgeç"
+                    onConfirm={onConfirmDeletePlace}
+                    onCancel={() => setIsPlaceDeleteModalVisible(false)}
+                />
+                <CustomActionSheet 
+                    visible={isActionSheetVisible}
+                    onClose={() => setIsActionSheetVisible(false)}
+                    title="Mekan Ayarları"
+                    options={actionOptions}
+                />
                 {/* 2. ANA İÇERİK KARTI (Değişiklik yok) */}
                 <View style={styles.contentCard}>
                     <View style={styles.titleRow}>
@@ -184,7 +314,6 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                                 {[city, category].filter(Boolean).join(" • ")}
                             </Text>
                         </View>
-                        {!!status && <StatusBadge status={status} />}
                     </View>
 
                     <View style={styles.quickActionsRow}>
@@ -207,43 +336,110 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             </TouchableOpacity>
                         )}
                     </View>
+{/* YENİ: BİRLEŞTİRİLMİŞ (UNIFIED) DEĞERLENDİRME KARTI */}
+                    <View style={styles.unifiedReviewCard}>
+                        
+                        {/* Üst Kısım: Puanlar (My Rate | Group Rate) */}
+                        <View style={styles.unifiedRatesHeader}>
+                            <View style={styles.rateColumn}>
+                                <Text style={styles.rateLabel}>My Rate</Text>
+                                <Text style={styles.rateValue}>{myRating !== null ? myRating : "-"}</Text>
+                                {renderAccurateStars(myRating)}
+                            </View>
+                            
+                            <View style={styles.rateDivider} />
+                            
+                            <View style={styles.rateColumn}>
+                                <Text style={styles.rateLabel}>Group Rate</Text>
+                                <Text style={styles.rateValue}>{groupAverage > 0 ? groupAverage.toFixed(1) : "-"}</Text>
+                                {renderAccurateStars(groupAverage > 0 ? groupAverage : null)}
+                            </View>
+                        </View>
 
-                    <View style={styles.ratingsCard}>
-                        <View style={styles.ratingBox}>
-                            <Text style={styles.ratingLabel}>My Rating</Text>
-                            <View style={styles.ratingValueRow}>
-                                <Text style={styles.ratingValue}>{myRating !== null ? myRating : "-"}</Text>
-                                <Text style={styles.ratingMax}>/10</Text>
+                        <View style={styles.unifiedLine} />
+
+                        <View style={styles.unifiedLine} />
+
+                        {/* Alt Kısım: Yorumlar Listesi */}
+                        {!reviews.length ? (
+                            <Text style={styles.noReviewText}>Bu mekan için henüz yorum yapılmamış.</Text>
+                        ) : (
+                            <View style={styles.unifiedReviewList}>
+                                {reviews.map((review, index) => (
+                                    <View 
+                                        key={review.id} 
+                                        style={[
+                                            styles.unifiedReviewItem, 
+                                            index === reviews.length - 1 && { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 }
+                                        ]}
+                                    >
+                                        {/* Profil Fotoğrafı (Şimdilik İkon Placeholder) */}
+                                        <View style={styles.reviewAvatar}>
+                                            <Ionicons name="person" size={20} color="#94a3b8" />
+                                        </View>
+                                        
+                                        {/* İçerik: İsim, Puan ve Yorum */}
+                                        <View style={styles.reviewContent}>
+                                            <View style={styles.reviewNameRow}>
+                                                <Text style={styles.reviewName}>
+                                                    {review.userName || review.userName || "Kullanıcı"}
+                                                </Text>
+                                                
+                                                {/* Sağ Üstteki Sarı Puan Kutucuğu */}
+                                                <View style={styles.reviewStarBadge}>
+                                                    <Ionicons name="star" size={12} color="#F59E0B" />
+                                                    <Text style={styles.reviewStarText}>{review.rating}</Text>
+                                                </View>
+                                            </View>
+                                            
+                                            {/* Yorum Metni */}
+                                            {review.comment ? (
+                                                <Text style={styles.reviewCommentText}>{review.comment}</Text>
+                                            ) : (
+                                                <Text style={[styles.reviewCommentText, { fontStyle: "italic", color: "#cbd5e1" }]}>Yorum bırakılmamış.</Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                ))}
                             </View>
-                            {myRating !== null && renderStars(myRating)}
-                        </View>
-                        <View style={styles.ratingDivider} />
-                        <View style={styles.ratingBox}>
-                            <Text style={styles.ratingLabel}>Group Ortalamasi</Text>
-                            <View style={styles.ratingValueRow}>
-                                <Text style={styles.ratingValue}>{groupAverage.toFixed(1)}</Text>
-                                <Text style={styles.ratingMax}>/10</Text>
-                            </View>
-                            {renderStars(groupAverage)}
-                        </View>
+                        )}
                     </View>
-                    
                     {Platform.OS !== "web" && latitude && longitude && MapView && (
-                        <View style={styles.sectionContainer}>
-                            <Text style={styles.sectionTitle}>Location</Text>
-                            {!!address && <Text style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>{address}</Text>}
-                            <View style={styles.mapWidgetContainer}>
-                                <MapView
-                                    style={styles.mapWidget}
-                                    provider={PROVIDER_GOOGLE}
-                                    initialRegion={{ latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 }}
-                                    scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
-                                >
-                                    <Marker coordinate={{ latitude, longitude }} pinColor={status === "Visited" ? "#2F7E8D" : "#fcbebe"} />
-                                </MapView>
-                                <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => Alert.alert("Map", "Full map opening feature is coming soon!")} />
+                       <View style={styles.sectionContainer}>
+                        <Text style={styles.sectionTitle}>Photos</Text>
+                        {!photos.length ? (
+                            <View style={styles.emptyCard}>
+                                <Text style={styles.emptyCardText}>No photos yet. Be the first to upload!</Text>
                             </View>
-                        </View>
+                        ) : (
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={{ marginHorizontal: -24, paddingHorizontal: 24 }}
+                            >
+                                {photos.map((photo: any, i: number) => (
+                                    <Pressable
+                                        key={photo.id ?? i}
+                                        onPress={() => {
+                                            setViewerIndex(i);
+                                            setIsViewerVisible(true);
+                                        }}
+                                        style={styles.galleryItemWrapper}
+                                    >
+                                        <Image source={{ uri: photo.imageUrl }} style={styles.galleryImage} />
+
+                                        <TouchableOpacity
+                                            style={styles.deletePhotoButton}
+                                            onPress={() => handleDeletePhotoPress(photo.id)}
+                                        >
+                                            <Ionicons name="close" size={14} color="#ffffff" />
+                                        </TouchableOpacity>
+                                    </Pressable>
+                                ))}
+                                <View style={{ width: 24 }} />
+                            </ScrollView>
+                        )}
+                    </View>
                     )}
 
                     <View style={styles.infoSection}>
@@ -269,37 +465,73 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                         )}
                     </View>
 
-                    <View style={styles.sectionContainer}>
-                        <Text style={styles.sectionTitle}>Photos</Text>
-                        {!photos.length ? (
-                            <View style={styles.emptyCard}><Text style={styles.emptyCardText}>No photos yet. Be the first to upload!</Text></View>
-                        ) : (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -24, paddingHorizontal: 24 }}>
-                                {photos.map((photo: any, i: number) => (
-                                    <Image key={i} source={{ uri: photo.imageUrl }} style={styles.galleryImage} />
-                                ))}
-                                <View style={{ width: 24 }} />
-                            </ScrollView>
-                        )}
-                    </View>
-
-                    <View style={styles.sectionContainer}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
-                            <Text style={styles.sectionTitle}>Reviews</Text>
-                            <Text style={styles.reviewCountText}>{reviewCount} reviews</Text>
-                        </View>
-                        {!reviews.length ? (
-                            <View style={styles.emptyCard}><Text style={styles.emptyCardText}>No reviews yet.</Text></View>
-                        ) : (
-                            reviews.map((review) => (
-                                <View key={review.id} style={{ marginBottom: 12 }}>
-                                    <ReviewCard review={review} />
-                                </View>
-                            ))
-                        )}
-                    </View>
-
                 </View>
+                <Modal visible={isViewerVisible} transparent animationType="fade">
+                    <View style={styles.viewerOverlay}>
+                        <TouchableOpacity
+                            style={styles.viewerCloseButton}
+                            onPress={() => setIsViewerVisible(false)}
+                        >
+                            <Ionicons name="close" size={28} color="#ffffff" />
+                        </TouchableOpacity>
+
+                        {photos.length > 0 && (
+                            <FlatList
+                                ref={viewerSliderRef}
+                                data={photos}
+                                horizontal
+                                pagingEnabled
+                                initialScrollIndex={viewerIndex}
+                                getItemLayout={(_, index) => ({
+                                    length: screenWidth,
+                                    offset: screenWidth * index,
+                                    index,
+                                })}
+                                keyExtractor={(item: any, index) => item.id ?? String(index)}
+                                showsHorizontalScrollIndicator={false}
+                                onMomentumScrollEnd={(e) => {
+                                    const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+                                    setViewerIndex(index);
+                                }}
+                                renderItem={({ item }: any) => (
+                                    <View style={[styles.viewerImageWrapper, { width: screenWidth }]}>
+                                        <Image
+                                            source={{ uri: item.imageUrl }}
+                                            style={styles.viewerImage}
+                                            resizeMode="contain"
+                                        />
+                                    </View>
+                                )}
+                            />
+                        )}
+
+                        {photos.length > 1 && (
+                            <>
+                                <TouchableOpacity
+                                    style={[styles.viewerNavButton, styles.viewerNavLeft]}
+                                    onPress={() => {
+                                        const newIndex = Math.max(viewerIndex - 1, 0);
+                                        viewerSliderRef.current?.scrollToIndex({ index: newIndex, animated: true });
+                                        setViewerIndex(newIndex);
+                                    }}
+                                >
+                                    <Ionicons name="chevron-back" size={28} color="#ffffff" />
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.viewerNavButton, styles.viewerNavRight]}
+                                    onPress={() => {
+                                        const newIndex = Math.min(viewerIndex + 1, photos.length - 1);
+                                        viewerSliderRef.current?.scrollToIndex({ index: newIndex, animated: true });
+                                        setViewerIndex(newIndex);
+                                    }}
+                                >
+                                    <Ionicons name="chevron-forward" size={28} color="#ffffff" />
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
+                </Modal>
             </ScrollView>
         </View>
     );
@@ -327,7 +559,249 @@ const styles = StyleSheet.create({
         borderRadius: 22, justifyContent: "center", alignItems: "center",
         shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5
     },
+    sliderNavButton: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.88)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 5
+    },
+    sliderNavLeft: {
+        left: 16
+    },
+    sliderNavRight: {
+        right: 16
+    },
+    paginationWrapper: {
+        position: "absolute",
+        bottom: 18,
+        left: 0,
+        right: 0,
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    paginationDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "rgba(255,255,255,0.5)",
+        marginHorizontal: 4
+    },
+    paginationDotActive: {
+        backgroundColor: "#ffffff",
+        width: 18
+    },
+    galleryItemWrapper: {
+        position: "relative",
+        marginRight: 12
+    },
+    deletePhotoButton: {
+        position: "absolute",
+        top: 8,
+        right: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: "rgba(239,68,68,0.95)",
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    
+    // --- YENİ EKLENEN VEYA GÜNCELLENEN STİLLER ---
+    scoreCard: { 
+        flexDirection: "row", 
+        backgroundColor: "white", 
+        marginTop: 28, 
+        borderRadius: 20, 
+        padding: 20, 
+        borderWidth: 1,
+        borderColor: "#f1f5f9",
+        shadowColor: "#000", 
+        shadowOffset: { width: 0, height: 4 }, 
+        shadowOpacity: 0.03, 
+        shadowRadius: 10, 
+        elevation: 2 
+    },
+    scoreBox: { flex: 1, alignItems: "center", justifyContent: "center" },
+    scoreDivider: { width: 1, backgroundColor: "#f1f5f9", marginHorizontal: 10 },
+    scoreLabel: { fontSize: 11, fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 },
+    scoreValueRow: { flexDirection: "row", alignItems: "baseline", marginBottom: 2 },
+    scoreValue: { fontSize: 32, fontWeight: "900", color: "#0f172a" },
+    scoreMax: { fontSize: 15, fontWeight: "700", color: "#94a3b8", marginLeft: 2 },
+    noScoreText: { fontSize: 12, color: "#94a3b8", marginTop: 4, fontStyle: "italic" },
+// --- BİRLEŞTİRİLMİŞ YORUM KARTI STİLLERİ ---
+    unifiedReviewCard: {
+        backgroundColor: "white",
+        marginTop: 28,
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: "#f1f5f9",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.03,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    unifiedRatesText: {
+        fontSize: 15,
+        color: "#64748b",
+        fontWeight: "600",
+    },
+    unifiedRatesBold: {
+        color: "#102a43",
+        fontWeight: "800",
+        fontSize: 16,
+    },
+    unifiedRatesDivider: {
+        color: "#cbd5e1",
+        fontWeight: "400",
+    },
+    unifiedLine: {
+        height: 1,
+        backgroundColor: "#f1f5f9",
+        marginBottom: 16,
+    },
+    noReviewText: {
+        color: "#94a3b8",
+        fontStyle: "italic",
+        fontSize: 14,
+        textAlign: "center",
+        paddingVertical: 10,
+    },
+    unifiedReviewList: {
+        flexDirection: "column",
+    },
+    unifiedReviewItem: {
+        flexDirection: "row",
+        paddingBottom: 16,
+        marginBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: "#f8fafc",
+    },
+    reviewAvatar: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: "#f1f5f9",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 14,
+    },
+    reviewContent: {
+        flex: 1,
+        justifyContent: "center",
+    },
+    reviewNameRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 4,
+    },
+    reviewName: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#102a43",
+    },
+    reviewStarBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#fef3c7",
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    reviewStarText: {
+        fontSize: 12,
+        fontWeight: "800",
+        color: "#d97706",
+        marginLeft: 4,
+    },
+    reviewCommentText: {
+        fontSize: 14,
+        color: "#475569",
+        lineHeight: 20,
+    },
+    viewerOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.96)",
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    unifiedRatesHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    rateColumn: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    rateDivider: {
+        width: 1,
+        height: 44, // İki sütun arasındaki dikey çizginin boyu
+        backgroundColor: "#e2e8f0",
+    },
+    rateLabel: {
+        fontSize: 11,
+        color: "#64748b",
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+        marginBottom: 4,
+    },
+    rateValue: {
+        fontSize: 28, 
+        fontWeight: "900",
+        color: "#102a43",
+    },
 
+    viewerCloseButton: {
+        position: "absolute",
+        top: Platform.OS === "ios" ? 56 : 26,
+        right: 20,
+        zIndex: 10,
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    viewerImageWrapper: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    viewerImage: {
+        width: "100%",
+        height: "78%"
+    },
+    viewerNavButton: {
+        position: "absolute",
+        top: "50%",
+        marginTop: -24,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: "rgba(255,255,255,0.16)",
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    viewerNavLeft: {
+        left: 16
+    },
+    viewerNavRight: {
+        right: 16
+    },
     contentCard: { backgroundColor: "#f8fafc", borderTopLeftRadius: 32, borderTopRightRadius: 32, marginTop: -32, padding: 24, minHeight: 500 },
     titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
     title: { fontSize: 26, fontWeight: "900", color: "#0f172a", marginBottom: 4 },

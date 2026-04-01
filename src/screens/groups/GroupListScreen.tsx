@@ -23,7 +23,7 @@ import { createGroup, deleteGroup, getGroups, updateGroup } from "../../api/grou
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { Group } from "../../types/group";
-
+const GROUP_COLORS = ["#2F7E8D", "#fcbebe", "#a78bfa", "#fbbf24", "#34d399", "#f472b6", "#38bdf8"];
 export default function GroupsScreen({ navigation }: any) {
     const { selectedGroupId, setSelectedGroup } = useSelectedGroup();
 
@@ -35,7 +35,7 @@ export default function GroupsScreen({ navigation }: any) {
     const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
     const [newGroupName, setNewGroupName] = useState("");
     const [creating, setCreating] = useState(false);
-
+    const [newGroupColor, setNewGroupColor] = useState(GROUP_COLORS[0]);
     // Options & Edit States
     const [activeGroupOptions, setActiveGroupOptions] = useState<Group | null>(null);
     const [isOptionsModalVisible, setIsOptionsModalVisible] = useState(false);
@@ -81,7 +81,7 @@ export default function GroupsScreen({ navigation }: any) {
         }
         try {
             setCreating(true);
-            const newGroup = await createGroup({ name: newGroupName.trim() });
+            const newGroup = await createGroup({ name: newGroupName.trim(), color: newGroupColor });
             setNewGroupName("");
             setIsCreateModalVisible(false);
             if (setSelectedGroup) setSelectedGroup(newGroup);
@@ -106,7 +106,7 @@ export default function GroupsScreen({ navigation }: any) {
         if (!editGroupName.trim() || !activeGroupOptions) return;
         try {
             setEditing(true);
-            await updateGroup(activeGroupOptions.id, editGroupName.trim());
+            await updateGroup(activeGroupOptions.id, editGroupName.trim(), activeGroupOptions.color);
             setIsEditModalVisible(false);
 
             // Eğer düzenlenen grup şu an seçili olansa, Context'i de güncelle
@@ -158,8 +158,10 @@ export default function GroupsScreen({ navigation }: any) {
         }, 300);
     };
 
-    const renderGroupCard = ({ item }: { item: Group }) => {
+const renderGroupCard = ({ item }: { item: Group }) => {
         const isSelected = item.id === selectedGroupId;
+        // YENİ: Grubun kendi rengini alıyoruz, yoksa varsayılan turkuaz yapıyoruz
+        const groupColor = (item as any).colorCode || "#2F7E8D"; 
 
         return (
             <TouchableOpacity
@@ -167,18 +169,21 @@ export default function GroupsScreen({ navigation }: any) {
                 onPress={() => setSelectedGroup && setSelectedGroup(item)}
                 style={[
                     styles.groupCard,
-                    isSelected && styles.groupCardSelected
+                    // YENİ: Seçiliyse kenarlığı grubun rengi yap, arkaplanı da o rengin çok hafif saydam hali yap (Sonundaki 15 hex saydamlık kodudur)
+                    isSelected && { borderColor: groupColor, backgroundColor:  "#f1f5f9" }
                 ]}
             >
                 <View style={[
                     styles.iconContainer,
-                    isSelected ? { backgroundColor: "#2F7E8D" } : { backgroundColor: "#f1f5f9" }
+                    // YENİ: Seçiliyse ikon arkaplanı grubun kendi rengi olsun
+                    isSelected ? { backgroundColor: groupColor } : { backgroundColor: "#f1f5f9" }
                 ]}>
                     <Ionicons name={isSelected ? "planet" : "planet-outline"} size={24} color={isSelected ? "white" : "#64748b"} />
                 </View>
 
                 <View style={styles.cardContent}>
-                    <Text style={[styles.groupTitle, isSelected && { color: "#2F7E8D" }]} numberOfLines={1}>
+                    {/* YENİ: Seçiliyse başlık yazısı grubun renginde olsun */}
+                    <Text style={[styles.groupTitle, isSelected && { color: groupColor }]} numberOfLines={1}>
                         {item.name || (item as any).title || "İsimsiz Grup"}
                     </Text>
                     <Text style={styles.groupSubtitle}>
@@ -189,7 +194,8 @@ export default function GroupsScreen({ navigation }: any) {
                 {/* Sağ Taraf: Seçim İkonu ve Seçenekler (3 Nokta) Butonu */}
                 <View style={styles.cardRightActions}>
                     {isSelected && (
-                        <Ionicons name="checkmark-circle" size={24} color="#2F7E8D" style={{ marginRight: 8 }} />
+                        // YENİ: Onay tiki de grubun kendi renginde!
+                        <Ionicons name="checkmark-circle" size={24} color={groupColor} style={{ marginRight: 8 }} />
                     )}
                     <TouchableOpacity
                         style={styles.optionsButton}
@@ -287,11 +293,11 @@ export default function GroupsScreen({ navigation }: any) {
                                         onPress={() => {
                                             setIsOptionsModalVisible(false);
                                             // Üyeleri Yönet Ekranına Yönlendirme
-                                            navigation.navigate("GroupMembers", { groupId: activeGroupOptions?.id, groupName: activeGroupOptions?.name });
+                                            navigation.navigate("GroupMembers", { groupId: activeGroupOptions?.id, groupName: activeGroupOptions?.name , currentColor: (activeGroupOptions as any)?.colorCode   });
                                         }}
                                     >
                                         <Ionicons name="people" size={20} color="#F59E0B" />
-                                        <Text style={styles.optionText}>Üyeleri Yönet</Text>
+                                        <Text style={styles.optionText}>Grubu Yönet</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={[styles.optionItem, { borderBottomWidth: 0 }]} onPress={confirmDeleteGroup}>
@@ -307,12 +313,36 @@ export default function GroupsScreen({ navigation }: any) {
                             <View style={styles.modalOverlay}>
                                 <View style={styles.modalContent}>
                                     <Text style={styles.modalTitle}>Yeni Grup</Text>
+                                    
                                     <TextInput
-                                        style={styles.modalInput} placeholder="Grup adı..." placeholderTextColor="#94a3b8"
-                                        value={newGroupName} onChangeText={setNewGroupName} autoFocus={true}
+                                        style={styles.modalInput} 
+                                        placeholder="Grup adı..." 
+                                        placeholderTextColor="#94a3b8"
+                                        value={newGroupName} 
+                                        onChangeText={setNewGroupName} 
+                                        autoFocus={true}
                                     />
+
+                                    {/* YENİ: RENK PALETİ */}
+                                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#64748b", marginBottom: 8, marginTop: -10 }}>Grup Rengi</Text>
+                                    <View style={{ flexDirection: "row", gap: 10, marginBottom: 24, flexWrap: "wrap", justifyContent: "center" }}>
+                                        {GROUP_COLORS.map((color) => (
+                                            <Pressable
+                                                key={color}
+                                                onPress={() => setNewGroupColor(color)}
+                                                style={[
+                                                    styles.colorDot,
+                                                    { backgroundColor: color },
+                                                    newGroupColor === color && styles.selectedColorDot
+                                                ]}
+                                            >
+                                                {newGroupColor === color && <Ionicons name="checkmark" size={16} color="white" />}
+                                            </Pressable>
+                                        ))}
+                                    </View>
+
                                     <View style={styles.modalActions}>
-                                        <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setIsCreateModalVisible(false); setNewGroupName(""); }}>
+                                        <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setIsCreateModalVisible(false); setNewGroupName(""); setNewGroupColor(GROUP_COLORS[0]); }}>
                                             <Text style={styles.modalCancelText}>İptal</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity style={styles.modalCreateBtn} onPress={handleCreateGroup} disabled={creating}>
@@ -395,6 +425,8 @@ const styles = StyleSheet.create({
     modalCreateBtn: { backgroundColor: "#2F7E8D", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, justifyContent: "center", alignItems: "center", minWidth: 100 },
     modalCreateText: { fontSize: 15, fontWeight: "700", color: "white" },
 
+    colorDot: { width: 32, height: 32, borderRadius: 16, justifyContent: "center", alignItems: "center" },
+    selectedColorDot: { borderWidth: 2, borderColor: "#102a43" },
     // OPTIONS MENU (Action Sheet)
     optionsMenu: { backgroundColor: "white", borderRadius: 24, padding: 16, width: "100%", alignSelf: "center", marginTop: "auto", marginBottom: 20 },
     optionsMenuTitle: { fontSize: 16, fontWeight: "700", color: "#94a3b8", textAlign: "center", paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#f1f5f9", marginBottom: 8 },

@@ -5,6 +5,7 @@ export interface Group {
     name: string;
     createdByUserId: string;
     createdAt: string;
+    color: string;
 }
 
 export interface GroupMember {

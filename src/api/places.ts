@@ -1,10 +1,10 @@
-import { api } from "./client";
 import {
     CreatePlaceRequest,
     Place,
     PlaceDetailAggregate,
     UpdatePlaceRequest,
 } from "../types/place";
+import { api } from "./client";
 
 export async function getPlacesByGroup(groupId: string): Promise<Place[]> {
     const response = await api.get(`/places/Getgroup/${groupId}`);
@@ -32,5 +32,10 @@ export async function deletePlace(placeId: string): Promise<void> {
 
 export async function getPlaceDetail(placeId: string): Promise<PlaceDetailAggregate> {
     const response = await api.get(`/places/${placeId}/PlaceDetail`);
+    return response.data.data ?? response.data;
+}
+
+export const getMyCalendarPlaces = async () => {
+    const response = await api.get("/Places/my-calendar");
     return response.data.data ?? response.data;
 }

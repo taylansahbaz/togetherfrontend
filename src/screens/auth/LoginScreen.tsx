@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -11,6 +12,7 @@ import {
   useWindowDimensions,
   View
 } from "react-native";
+import { resendVerification } from "../../api/auth";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
 import ErrorMessage from "../../components/common/ErrorMessage";
@@ -60,7 +62,34 @@ export default function LoginScreen({ navigation }: any) {
       });
     } catch (err) {
       const message = getApiErrorMessage(err);
-      setError(message);
+      // 3. HATA MESAJI O SPESİFİK MESAJ İSE:
+        if (message === "Please verify your email address before logging in.") {
+            
+            Alert.alert(
+                "Doğrulama Gerekli", 
+                "Hesabınız henüz doğrulanmamış. Size yeni bir onay kodu gönderiyoruz...", 
+                [
+                    {
+                        text: "Kodu Gir",
+                        onPress: async () => {
+                           navigation.navigate("VerifyEmail", { email: email.trim() });
+                          resendVerification(email.trim()).catch((err) => {
+                              // Sadece arka planda bir hata olursa kullanıcıyı uyar
+                              console.log("Mail gönderilemedi:", err);
+                              Alert.alert("Uyarı", "Yeni kod gönderilirken bir sorun oluştu, lütfen tekrar deneyin.");
+                          });
+                        }
+                    },
+                    {
+                        text: "İptal",
+                        style: "cancel"
+                    }
+                ]
+            );
+
+        } else {
+            setError(message);
+        }
     } finally {
       setLoading(false);
     }

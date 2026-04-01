@@ -4,7 +4,7 @@
     "slug": "socialmemory-mobile-clean",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "socialmemorymobileclean",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -43,6 +43,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3ba6b276-8e4c-4c4d-b7d0-4bc0301a4a3b"
+      }
+    },
+    "owner": "taylansahbaz02"
   }
 }

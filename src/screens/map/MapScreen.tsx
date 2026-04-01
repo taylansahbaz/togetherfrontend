@@ -6,6 +6,7 @@ import {
   Alert,
   Dimensions,
   Keyboard,
+  Linking,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -29,10 +30,10 @@ const INITIAL_REGION = {
   longitudeDelta: 10.0,
 };
 
-export default function MapScreen({ navigation }: any) {
+export default function MapScreen({ route ,navigation }: any) {
   const { selectedGroupId } = useSelectedGroup();
   const mapRef = useRef<MapView>(null);
-
+  const targetPlaceId = route.params?.targetPlaceId;
   const [loading, setLoading] = useState(false);
   const [allPlaces, setAllPlaces] = useState<any[]>([]);
   const [filteredPlaces, setFilteredPlaces] = useState<any[]>([]);
@@ -44,6 +45,8 @@ export default function MapScreen({ navigation }: any) {
   const loadMapData = async () => {
     if (!selectedGroupId) {
       setAllPlaces([]);
+      setFilteredPlaces([]);
+      setSelectedPlace(null);
       return;
     }
 
@@ -60,15 +63,33 @@ export default function MapScreen({ navigation }: any) {
 
         setAllPlaces(validPlaces);
         setFilteredPlaces(validPlaces);
+
+        if (targetPlaceId) {
+          const placeToFocus = validPlaces.find((p) => p.id === targetPlaceId);
+
+          if (placeToFocus) {
+            setSelectedPlace(placeToFocus);
+
+            setTimeout(() => {
+              focusPlace(placeToFocus);
+            }, 250);
+
+            navigation.setParams({ targetPlaceId: undefined });
+            return;
+          }
+        }
+
         setSelectedPlace(null);
         fitToPlaces(validPlaces);
       }
-    } catch ( err: any) {
-     if (err.response?.status === 403 || err.response?.status === 401) {
-            setAllPlaces([]);
-        } else {
-            Alert.alert("Hata", getApiErrorMessage(err));
-        }
+    } catch (err: any) {
+      if (err.response?.status === 403 || err.response?.status === 401) {
+        setAllPlaces([]);
+        setFilteredPlaces([]);
+        setSelectedPlace(null);
+      } else {
+        Alert.alert("Hata", getApiErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -77,7 +98,7 @@ export default function MapScreen({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       loadMapData();
-    }, [selectedGroupId])
+    }, [selectedGroupId, targetPlaceId ])
   );
 
   useEffect(() => {
@@ -103,8 +124,7 @@ export default function MapScreen({ navigation }: any) {
     }
 
     setFilteredPlaces(result);
-
-    if (result.length > 0) {
+    if (result.length > 0 && !selectedPlace && !targetPlaceId) {
       fitToPlaces(result);
     }
   }, [searchQuery, activeFilter, allPlaces]);
@@ -154,6 +174,36 @@ export default function MapScreen({ navigation }: any) {
       500
     );
   };
+  
+  const openDirections = async (place: any) => {
+    const lat = Number(place?.latitude);
+    const lng = Number(place?.longitude);
+    const label = encodeURIComponent(place?.title || "Location");
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      Alert.alert("Hata", "Bu mekan için geçerli konum bulunamadı.");
+      return;
+    }
+
+    try {
+      // Google Maps app varsa onu açmaya çalış
+      const googleMapsUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+
+      const canOpenGoogleMaps = await Linking.canOpenURL(googleMapsUrl);
+
+      if (canOpenGoogleMaps) {
+        await Linking.openURL(googleMapsUrl);
+        return;
+      }
+
+      // Yoksa sistemin desteklediği genel maps linkini aç
+      const universalUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+      await Linking.openURL(universalUrl);
+    } catch (error) {
+      Alert.alert("Hata", "Harita uygulaması açılamadı.");
+    }
+  };
 
   if (Platform.OS === "web") {
     return (
@@ -190,52 +240,47 @@ export default function MapScreen({ navigation }: any) {
         </View>
       )}
 
-      <MapView
+<MapView
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         initialRegion={INITIAL_REGION}
         showsUserLocation
         showsMyLocationButton={false}
-        onPress={() => {
+        onPress={(e) => {
+          // 1. DÜZELTME: Eğer tıklanan şey bir Marker ise, kartı kapatma!
+          if (e.nativeEvent.action === 'marker-press') return;
+          
           Keyboard.dismiss();
           setSelectedPlace(null);
         }}
       >
         {filteredPlaces.map((place, index) => {
-          const isWishlist =
-            place.status === 1 || place.status === "Wishlist";
-          const isVisited =
-            place.status === 2 || place.status === "Visited";
-
-          let themeColor = "#8aa0b2";
-          let statusText = "Other";
-          if (isVisited) {
-            themeColor = "#2F7E8D";
-            statusText = "Visited";
-          } else if (isWishlist) {
-            themeColor = "#fcbebe";
-            statusText = "Wishlist";
-          }
+          const isWishlist = place.status === 1 || place.status === "Wishlist";
+          const isVisited = place.status === 2 || place.status === "Visited";
 
           return (
             <Marker
               key={`${place.id}-${index}`}
               coordinate={{
-                latitude: place.latitude,
-                longitude: place.longitude,
+                latitude: Number(place.latitude), // 2. DÜZELTME: iOS koordinatları kesin Number ister
+                longitude: Number(place.longitude),
               }}
-              onPress={() => focusPlace(place)}
+              // 3. DÜZELTME: Parmağın etrafındaki tıklanabilir alanı genişletiyoruz
+              hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
+              onPress={(e) => {
+                // 4. DÜZELTME: Tıklamanın arkaya (haritaya) sekmesini ve kartı kapatmasını engelliyoruz
+                e.stopPropagation(); 
+                focusPlace(place);
+              }}
             >
-              <View style={styles.pinContainer}>
+              {/* 5. DÜZELTME: Görünmez dokunma kalkanı (width 44, height 44) ile Apple standartlarını yakalıyoruz */}
+              <View style={[styles.pinContainer, { width: 44, height: 44 }]}>
                 <View
                   style={[
                     styles.pinCircle,
                     {
-                      backgroundColor:
-                        place.status === 2 || place.status === "Visited"
-                          ? "#2F7E8D"
-                          : "#fcbebe",
+                      backgroundColor: isVisited ? "#2F7E8D" : "#fcbebe",
                     },
                   ]}
                 />
@@ -318,16 +363,7 @@ export default function MapScreen({ navigation }: any) {
 
       {selectedPlace && (
         <View style={styles.bottomCardWrapper}>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.bottomCard}
-            onPress={() =>
-              navigation.navigate("HomeTab", {
-                screen: "PlaceDetail",
-                params: { placeId: selectedPlace.id },
-              })
-            }
-          >
+          <View style={styles.bottomCard}>
             <View style={styles.bottomCardTopRow}>
               <View
                 style={[
@@ -358,14 +394,28 @@ export default function MapScreen({ navigation }: any) {
             </Text>
 
             <View style={styles.bottomCardFooter}>
-              <Text style={styles.bottomCardAction}>Detayları Gör</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={16}
-                color="#102a43"
-              />
+              <TouchableOpacity
+                style={styles.directionsButton}
+                onPress={() => openDirections(selectedPlace)}
+              >
+                <Ionicons name="navigate" size={16} color="#ffffff" />
+                <Text style={styles.directionsButtonText}>Yol Tarifi Al</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.detailButton}
+                onPress={() =>
+                  navigation.navigate("HomeTab", {
+                    screen: "PlaceDetail",
+                    params: { placeId: selectedPlace.id },
+                  })
+                }
+              >
+                <Text style={styles.bottomCardAction}>Detayları Gör</Text>
+                <Ionicons name="arrow-forward" size={16} color="#102a43" />
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -500,7 +550,27 @@ pinCircle: {
     borderRadius: 6,
     backgroundColor: "white",
   },
+  directionsButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#2F7E8D",
+  paddingHorizontal: 14,
+  paddingVertical: 10,
+  borderRadius: 12,
+  gap: 6,
+},
 
+directionsButtonText: {
+  color: "#ffffff",
+  fontSize: 13,
+  fontWeight: "700",
+},
+
+detailButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+},
   bottomCardWrapper: {
     position: "absolute",
     left: 16,

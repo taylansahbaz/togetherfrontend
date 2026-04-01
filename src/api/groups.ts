@@ -1,12 +1,12 @@
-import { api } from "./client";
 import { Group, GroupMember } from "../types/group";
+import { api } from "./client";
 
 export async function getGroups(): Promise<Group[]> {
     const response = await api.get("/groups/myGroup");
     return response.data.data ?? response.data;
 }
 
-export async function createGroup(payload: { name: string }): Promise<Group> {
+export async function createGroup(payload: { name: string, color: string }): Promise<Group> {
     const response = await api.post("/groups/CreateGroup", payload);
     return response.data.data ?? response.data;
 }
@@ -25,9 +25,13 @@ export async function addGroupMember(groupId: string, email: string): Promise<vo
     await api.post(`/groups/${groupId}/AddGroupMembers`, { email });
 }
 
-export async function updateGroup(groupId: string, name: string): Promise<Group> {
-    const response = await api.put(`/groups/${groupId}/UpdateGroup`, { name });
-    return response.data.data ?? response.data;
+export async function updateGroup(groupId: string, name: string, color: string): Promise<Group> {
+    // Backend "colorCode" beklediği için veriyi o isimle gönderiyoruz:
+    const response = await api.put(`/groups/${groupId}/UpdateGroup`, { 
+        name: name, 
+        colorCode: color 
+    });
+    return response.data.data ?? response.data; 
 }
 
 export async function deleteGroup(groupId: string): Promise<void> {

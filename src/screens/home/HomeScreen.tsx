@@ -200,7 +200,7 @@ export default function HomeScreen({ navigation }: any) {
                         You don't have a group selected yet. {"\n\n"}Select an existing group or create a new one to start logging your shared memories.
                     </Text>
                     <View style={{ width: "100%", maxWidth: 300 }}>
-                        <AppButton title="Go to Groups" onPress={() => navigation.navigate("GroupsTab")} />
+                        <AppButton title="Go to Groups" onPress={() => navigation.navigate("ProfileTab", { screen: "Groups" })} />
                     </View>
                 </View>
             </SafeAreaView>
@@ -302,7 +302,7 @@ export default function HomeScreen({ navigation }: any) {
                                                             key={String(item.id)}
                                                             place={item} 
                                                             onPress={() => navigation.navigate("PlaceDetail", { placeId: item.id })}
-                                                            onMapPress={() => navigation.navigate("MapTab", { placeId: item.id })}
+                                                            onMapPress={() => navigation.navigate("MapTab", { targetPlaceId: item.id })}
                                                             onReviewPress={() => navigation.navigate("EditReview", { placeId: item.id })}
                                                             onPhotoPress={() => navigation.navigate("UploadPhoto", { placeId: item.id })}
                                                         />
