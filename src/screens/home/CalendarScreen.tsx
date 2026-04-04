@@ -19,14 +19,40 @@ import { Calendar, LocaleConfig } from "react-native-calendars";
 import { getMyCalendarPlaces } from "../../api/places";
 import { getApiErrorMessage } from "../../utils/helpers";
 
-LocaleConfig.locales['tr'] = {
-    monthNames: ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'],
-    monthNamesShort: ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'],
-    dayNames: ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'],
-    dayNamesShort: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'],
-    today: 'Bugün'
+LocaleConfig.locales["tr"] = {
+    monthNames: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+    monthNamesShort: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
+    dayNames: ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"],
+    dayNamesShort: ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"],
+    today: "Bugün"
 };
-LocaleConfig.defaultLocale = 'tr';
+LocaleConfig.defaultLocale = "tr";
+
+// YENİ: Verilen HEX rengini belirtilen oranda (%0 ile 1 arası) koyulaştırır
+const darkenColor = (hex: string, percent: number) => {
+    let cleanHex = hex.replace(/^#/, "");
+    if (cleanHex.length === 3) {
+        cleanHex =
+            cleanHex[0] +
+            cleanHex[0] +
+            cleanHex[1] +
+            cleanHex[1] +
+            cleanHex[2] +
+            cleanHex[2];
+    }
+
+    let r = parseInt(cleanHex.substring(0, 2), 16);
+    let g = parseInt(cleanHex.substring(2, 4), 16);
+    let b = parseInt(cleanHex.substring(4, 6), 16);
+
+    r = Math.max(0, Math.floor(r * (1 - percent)));
+    g = Math.max(0, Math.floor(g * (1 - percent)));
+    b = Math.max(0, Math.floor(b * (1 - percent)));
+
+    return `#${r.toString(16).padStart(2, "0")}${g
+        .toString(16)
+        .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+};
 
 // Open-Meteo hava durumu kodlarını İkonlara çeviren yardımcı fonksiyon
 const getWeatherDetails = (weatherCode: number) => {
@@ -40,10 +66,9 @@ const getWeatherDetails = (weatherCode: number) => {
 };
 
 export default function CalendarScreen({ navigation }: any) {
-    // any kullanarak yeni eklenen groupColor'ın TypeScript hatası vermesini engelliyoruz
-    const [places, setPlaces] = useState<any[]>([]); 
+    const [places, setPlaces] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    
+
     const todayStr = new Date().toISOString().split("T")[0];
     const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
@@ -54,9 +79,8 @@ export default function CalendarScreen({ navigation }: any) {
     const loadPlaces = async () => {
         try {
             setLoading(true);
-            // YENİ: Backend'den tüm mekanları çekiyoruz
             const data = await getMyCalendarPlaces();
-            const placesArray = Array.isArray(data) ? data : (data?.data || []);
+            const placesArray = Array.isArray(data) ? data : data?.data || [];
             setPlaces(placesArray);
         } catch (err: any) {
             Alert.alert("Hata", getApiErrorMessage(err));
@@ -65,24 +89,33 @@ export default function CalendarScreen({ navigation }: any) {
         }
     };
 
-    useFocusEffect(useCallback(() => { loadPlaces(); }, []));
+    useFocusEffect(
+        useCallback(() => {
+            loadPlaces();
+        }, [])
+    );
 
     const selectedDayPlaces = useMemo(() => {
-        return places.filter(place => place.visitDate && place.visitDate.split('T')[0] === selectedDate);
+        return places.filter(
+            (place) =>
+                place.visitDate &&
+                place.visitDate.split("T")[0] === selectedDate
+        );
     }, [places, selectedDate]);
 
-    // Seçili gün değiştiğinde Open-Meteo'dan hava durumunu çeken Hook
     useEffect(() => {
         const fetchWeather = async () => {
             setLoadingWeather(true);
             setWeather(null);
 
             try {
-                let lat = 41.0082; // İstanbul Latitude
-                let lng = 28.9784; // İstanbul Longitude
+                let lat = 41.0082;
+                let lng = 28.9784;
 
                 if (selectedDayPlaces.length > 0) {
-                    const placeWithLocation = selectedDayPlaces.find(p => p.latitude && p.longitude);
+                    const placeWithLocation = selectedDayPlaces.find(
+                        (p) => p.latitude && p.longitude
+                    );
                     if (placeWithLocation) {
                         lat = placeWithLocation.latitude!;
                         lng = placeWithLocation.longitude!;
@@ -90,7 +123,7 @@ export default function CalendarScreen({ navigation }: any) {
                 }
 
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weathercode,temperature_2m_max&timezone=auto&start_date=${selectedDate}&end_date=${selectedDate}`;
-                
+
                 const response = await fetch(url);
                 const data = await response.json();
 
@@ -109,61 +142,171 @@ export default function CalendarScreen({ navigation }: any) {
         fetchWeather();
     }, [selectedDate, places]);
 
-    const formattedSelectedDate = new Date(selectedDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
+    const formattedSelectedDate = new Date(selectedDate).toLocaleDateString(
+        "tr-TR",
+        { day: "numeric", month: "long", weekday: "long" }
+    );
 
     return (
         <View style={{ flex: 1 }}>
-            <ImageBackground source={require("../../../assets/images/home-bg.png")} resizeMode="cover" style={{ flex: 1 }}>
+            <ImageBackground
+                source={require("../../../assets/images/home-bg.png")}
+                resizeMode="cover"
+                style={{ flex: 1 }}
+            >
                 <View style={{ flex: 1, backgroundColor: "rgba(245, 249, 250, 0.9)" }}>
                     <SafeAreaView style={{ flex: 1 }}>
-                        
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24, paddingTop: 20, paddingBottom: 10 }}>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                paddingHorizontal: 24,
+                                paddingTop: 20,
+                                paddingBottom: 10
+                            }}
+                        >
                             <View>
-                                <Text style={{ fontSize: 32, fontWeight: "800", color: "#102a43", marginTop: 4 }}>
+                                <Text
+                                    style={{
+                                        fontSize: 32,
+                                        fontWeight: "800",
+                                        color: "#102a43",
+                                        marginTop: 4
+                                    }}
+                                >
                                     Takvimim
                                 </Text>
                             </View>
                         </View>
 
                         {loading ? (
-                            <ActivityIndicator size="large" color="#2F7E8D" style={{ marginTop: 50 }} />
+                            <ActivityIndicator
+                                size="large"
+                                color="#2F7E8D"
+                                style={{ marginTop: 50 }}
+                            />
                         ) : (
-                            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-                                
-                                <View style={{ marginHorizontal: 20, marginTop: 10, borderRadius: 24, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 }}>
+                            <ScrollView
+                                showsVerticalScrollIndicator={false}
+                                contentContainerStyle={{ paddingBottom: 100 }}
+                            >
+                                <View
+                                    style={{
+                                        marginHorizontal: 20,
+                                        marginTop: 10,
+                                        borderRadius: 24,
+                                        overflow: "hidden",
+                                        shadowColor: "#000",
+                                        shadowOffset: { width: 0, height: 4 },
+                                        shadowOpacity: 0.05,
+                                        shadowRadius: 10,
+                                        elevation: 3
+                                    }}
+                                >
                                     <Calendar
                                         onDayPress={(day: any) => setSelectedDate(day.dateString)}
                                         theme={{
-                                            backgroundColor: '#ffffff', calendarBackground: '#ffffff',
-                                            textSectionTitleColor: '#64748b', todayTextColor: '#2F7E8D',
-                                            dayTextColor: '#102a43', textDisabledColor: '#cbd5e1',
-                                            arrowColor: '#2F7E8D', monthTextColor: '#102a43',
-                                            textDayFontWeight: '500', textMonthFontWeight: '800',
-                                            textDayHeaderFontWeight: '600', textDayFontSize: 15, textMonthFontSize: 18,
+                                            backgroundColor: "#234f78",
+                                            calendarBackground: "#234f78",
+                                            textSectionTitleColor: "rgba(255,255,255,0.75)",
+                                            dayTextColor: "#D9E2FF",
+                                            textDisabledColor: "rgba(217,226,255,0.28)",
+                                            monthTextColor: "#FFFFFF",
+                                            arrowColor: "#FFFFFF",
+                                            todayTextColor: "#FFFFFF",
+                                            textDayFontWeight: "600",
+                                            textMonthFontWeight: "800",
+                                            textDayHeaderFontWeight: "700",
+                                            textDayFontSize: 16,
+                                            textMonthFontSize: 20
                                         }}
-                                        // YENİ: MARKED DATES YERİNE KENDİ TASARIMIMIZI ÇİZİYORUZ
                                         dayComponent={({ date, state }: any) => {
-                                            const dayPlaces = places.filter(p => p.visitDate && p.visitDate.split('T')[0] === date.dateString);
+                                            const dayPlaces = places.filter(
+                                                (p) =>
+                                                    p.visitDate &&
+                                                    p.visitDate.split("T")[0] === date.dateString
+                                            );
                                             const isSelected = selectedDate === date.dateString;
-                                            
+
                                             if (dayPlaces.length > 0) {
-                                                const firstEvent = dayPlaces[0]; 
-                                                const isVisited = firstEvent.status === 2 || firstEvent.status === "Visited"; 
-                                                const groupColor = firstEvent.groupColor || "#2F7E8D"; // Dinamik Renk
+                                                const firstEvent = dayPlaces[0];
+                                                const isVisited =
+                                                    firstEvent.status === 2 ||
+                                                    firstEvent.status === "Visited";
+                                                const groupColor =
+                                                    firstEvent.groupColor || "#2F7E8D";
+                                                const darkBorderColor = darkenColor(
+                                                    groupColor,
+                                                    0.3
+                                                );
 
                                                 return (
-                                                    <Pressable onPress={() => setSelectedDate(date.dateString)}>
-                                                        <View style={[{ width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 }, isSelected && { borderWidth: 2, borderColor: '#102a43' }]}>
+                                                    <Pressable
+                                                        onPress={() => setSelectedDate(date.dateString)}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                {
+                                                                    width: 36,
+                                                                    height: 36,
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                    borderRadius: 10
+                                                                },
+                                                                isSelected && {
+                                                                    borderWidth: 2,
+                                                                    borderColor: darkBorderColor
+                                                                }
+                                                            ]}
+                                                        >
                                                             {isVisited ? (
-                                                                // GİDİLEN: Yuvarlak
-                                                                <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: groupColor, alignItems: 'center', justifyContent: 'center' }}>
-                                                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>{date.day}</Text>
+                                                                <View
+                                                                    style={{
+                                                                        width: 34,
+                                                                        height: 34,
+                                                                        borderRadius: 10,
+                                                                        backgroundColor: groupColor,
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center"
+                                                                    }}
+                                                                >
+                                                                    <Text
+                                                                        style={{
+                                                                            color: "white",
+                                                                            fontWeight: "bold",
+                                                                            fontSize: 14
+                                                                        }}
+                                                                    >
+                                                                        {date.day}
+                                                                    </Text>
                                                                 </View>
                                                             ) : (
-                                                                // PLAN: Kalp
-                                                                <View style={{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center' }}>
-                                                                    <Ionicons name="heart" size={38} color={groupColor} style={{ position: 'absolute' }} />
-                                                                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13, zIndex: 1, marginTop: -2 }}>{date.day}</Text>
+                                                                <View
+                                                                    style={{
+                                                                        width: 34,
+                                                                        height: 34,
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center"
+                                                                    }}
+                                                                >
+                                                                    <Ionicons
+                                                                        name="heart"
+                                                                        size={38}
+                                                                        color={groupColor}
+                                                                        style={{ position: "absolute" }}
+                                                                    />
+                                                                    <Text
+                                                                        style={{
+                                                                            color: "white",
+                                                                            fontWeight: "bold",
+                                                                            fontSize: 13,
+                                                                            zIndex: 1,
+                                                                            marginTop: -2
+                                                                        }}
+                                                                    >
+                                                                        {date.day}
+                                                                    </Text>
                                                                 </View>
                                                             )}
                                                         </View>
@@ -171,11 +314,37 @@ export default function CalendarScreen({ navigation }: any) {
                                                 );
                                             }
 
-                                            // BOŞ GÜNLER
                                             return (
-                                                <Pressable onPress={() => setSelectedDate(date.dateString)}>
-                                                    <View style={[{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 }, isSelected && { backgroundColor: 'rgba(47, 126, 141, 0.1)', borderWidth: 1, borderColor: '#2F7E8D' }]}>
-                                                        <Text style={{ color: state === 'disabled' ? '#cbd5e1' : '#102a43', fontWeight: isSelected ? 'bold' : 'normal' }}>
+                                                <Pressable
+                                                    onPress={() => setSelectedDate(date.dateString)}
+                                                >
+                                                    <View
+                                                        style={[
+                                                            {
+                                                                width: 36,
+                                                                height: 36,
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                borderRadius: 18
+                                                            },
+                                                            isSelected && {
+                                                                borderWidth: 1.5,
+                                                                borderColor: "#2DD4BF",
+                                                                backgroundColor:
+                                                                    "rgba(45,212,191,0.08)"
+                                                            }
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={{
+                                                                color:
+                                                                    state === "disabled"
+                                                                        ? "rgba(217,226,255,0.28)"
+                                                                        : "#D9E2FF",
+                                                                fontWeight: isSelected ? "700" : "600",
+                                                                fontSize: 15
+                                                            }}
+                                                        >
                                                             {date.day}
                                                         </Text>
                                                     </View>
@@ -185,31 +354,44 @@ export default function CalendarScreen({ navigation }: any) {
                                     />
                                 </View>
 
-                                {/* YENİ: BİLGİLENDİRME (LEGEND) KISMI ŞEKİLLERE GÖRE GÜNCELLENDİ */}
-                                <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 16, marginBottom: 20 }}>
-                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                        <Ionicons name="ellipse" size={14} color="#2F7E8D" />
-                                        <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>Gidilenler</Text>
-                                    </View>
-                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                        <Ionicons name="heart" size={16} color="#2F7E8D" />
-                                        <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>Wish Day (Planlar)</Text>
-                                    </View>
-                                </View>
+                                <View style={styles.detailsCard}>
+                                    <View style={styles.legendRow}>
+                                        <View style={styles.legendItem}>
+                                            <View style={styles.legendVisitedDot} />
+                                            <Text style={styles.legendText}>Gidilenler</Text>
+                                        </View>
 
-                                {/* GÜNÜN BİLGİLERİ VE HAVA DURUMU */}
-                                <View style={{ paddingHorizontal: 24 }}>
-                                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                        <Text style={{ fontSize: 18, fontWeight: "800", color: "#102a43", flex: 1 }}>
+                                        <View style={styles.legendItem}>
+                                            <Ionicons
+                                                name="heart"
+                                                size={18}
+                                                color="#ff5656"
+                                            />
+                                            <Text style={styles.legendText}>
+                                                Wish Day (Planlar)
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.detailsHeader}>
+                                        <Text style={styles.detailsDate}>
                                             {formattedSelectedDate}
                                         </Text>
 
                                         {loadingWeather ? (
-                                            <ActivityIndicator size="small" color="#94a3b8" />
+                                            <ActivityIndicator
+                                                size="small"
+                                                color="#94a3b8"
+                                            />
                                         ) : weather ? (
-                                            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#f1f5f9", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                                                <Ionicons name={weather.icon} size={18} color={weather.color} style={{ marginRight: 6 }} />
-                                                <Text style={{ fontSize: 14, fontWeight: "700", color: "#102a43" }}>
+                                            <View style={styles.weatherPill}>
+                                                <Ionicons
+                                                    name={weather.icon}
+                                                    size={18}
+                                                    color={weather.color}
+                                                    style={{ marginRight: 6 }}
+                                                />
+                                                <Text style={styles.weatherText}>
                                                     {weather.temp}°C
                                                 </Text>
                                             </View>
@@ -217,63 +399,148 @@ export default function CalendarScreen({ navigation }: any) {
                                     </View>
 
                                     {selectedDayPlaces.length === 0 ? (
-                                        <View style={{ backgroundColor: "rgba(255,255,255,0.6)", padding: 24, borderRadius: 20, alignItems: "center", borderWidth: 1, borderColor: "#e2e8f0", borderStyle: "dashed" }}>
-                                            <Ionicons name="calendar-clear-outline" size={32} color="#94a3b8" style={{ marginBottom: 10 }} />
-                                            <Text style={{ color: "#64748b", fontSize: 15, textAlign: "center", fontWeight: "500" }}>
+                                        <View style={styles.emptyCard}>
+                                            <Ionicons
+                                                name="calendar-clear-outline"
+                                                size={32}
+                                                color="#94a3b8"
+                                                style={{ marginBottom: 10 }}
+                                            />
+                                            <Text style={styles.emptyText}>
                                                 Bu tarihte henüz bir planınız veya anınız yok.
                                             </Text>
                                         </View>
                                     ) : (
-                                        selectedDayPlaces.map(place => {
-                                            const isVisited = place.status === 2 || place.status === "Visited";
-                                            const groupColor = place.groupColor || "#2F7E8D"; // Liste rengi de dinamik
+                                        <View style={styles.eventsList}>
+                                            {selectedDayPlaces.map((place) => {
+                                                const isVisited =
+                                                    place.status === 2 ||
+                                                    place.status === "Visited";
+                                                const groupColor =
+                                                    place.groupColor || "#2F7E8D";
 
-                                            return (
-                                                <Pressable 
-                                                    key={place.id}
-                                                    onPress={() => navigation.navigate("PlaceDetail", { placeId: place.id })}
-                                                    style={{ 
-                                                        flexDirection: "row", backgroundColor: "#ffffff", borderRadius: 20, padding: 16, marginBottom: 12, 
-                                                        shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-                                                        borderLeftWidth: 5, borderLeftColor: groupColor // Kenarlık rengi dinamik
-                                                    }}
-                                                >
-                                                    <View style={{ backgroundColor: `${groupColor}20`, width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center", marginRight: 16 }}>
-                                                        <Ionicons name={isVisited ? "checkmark-done" : "star"} size={24} color={groupColor} />
-                                                    </View>
-                                                    <View style={{ flex: 1, justifyContent: "center" }}>
-                                                        <Text style={{ fontSize: 16, fontWeight: "800", color: "#102a43" }} numberOfLines={1}>
-                                                            {place.title}
-                                                        </Text>
-                                                        {/* SENİN EKLENTİN: Şehir ve Kategori Birlikte */}
-                                                        <Text style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                                                            {place.city ? `${place.city} • ` : ''}{place.category}
-                                                        </Text>
-                                                    </View>
-                                                    <Ionicons name="chevron-forward" size={20} color="#cbd5e1" style={{ alignSelf: "center" }} />
-                                                </Pressable>
-                                            );
-                                        })
+                                                return (
+                                                    <Pressable
+                                                        key={place.id}
+                                                        onPress={() =>
+                                                            navigation.navigate("PlaceDetail", {
+                                                                placeId: place.id
+                                                            })
+                                                        }
+                                                        style={[
+                                                            styles.placeCard,
+                                                            { borderLeftColor: groupColor,
+                                                                backgroundColor:  "rgba(255,255,255,0.72)",
+                                                             }
+                                                        ]}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                styles.placeIconBox,
+                                                                {
+                                                                    backgroundColor: `${groupColor}20`
+                                                                }
+                                                            ]}
+                                                        >
+                                                            <Ionicons
+                                                                name={
+                                                                    isVisited
+                                                                        ? "checkmark-done"
+                                                                        : "star"
+                                                                }
+                                                                size={24}
+                                                                color={groupColor}
+                                                            />
+                                                        </View>
+
+                                                        <View
+                                                            style={{
+                                                                flex: 1,
+                                                                justifyContent: "center"
+                                                            }}
+                                                        >
+                                                            <Text
+                                                                style={styles.placeTitle}
+                                                                numberOfLines={1}
+                                                            >
+                                                                {place.title}
+                                                            </Text>
+
+                                                            <Text style={styles.placeMeta}>
+                                                                {place.city
+                                                                    ? `${place.city} • `
+                                                                    : ""}
+                                                                {place.category}
+                                                            </Text>
+                                                        </View>
+
+                                                        <Ionicons
+                                                            name="chevron-forward"
+                                                            size={20}
+                                                            color="#cbd5e1"
+                                                            style={{ alignSelf: "center" }}
+                                                        />
+                                                    </Pressable>
+                                                );
+                                            })}
+                                        </View>
                                     )}
-                                </View>
-                                <View style={styles.quickActionContainer}>
-                                <TouchableOpacity 
-                                    style={[styles.quickActionButton, { backgroundColor: "#50d7e0e1" }]} 
-                                    // Yönlendirme isimlerini kendi navigasyonuna göre ayarlayabilirsin
-                                    onPress={() => navigation.navigate("CreatePlace", { defaultDate: selectedDate , initialStatus: 2})}
-                                >
-                                    <Ionicons name="location" size={20} color="#252f9c" />
-                                    <Text style={styles.quickActionText}>Mekan Ekle</Text>
-                                </TouchableOpacity>
 
-                                <TouchableOpacity 
-                                    style={[styles.quickActionButton, { backgroundColor: "#fcbebe" }]} 
-                                    onPress={() => navigation.navigate("CreateWishlist", { defaultDate: selectedDate })}
-                                >
-                                    <Ionicons name="heart" size={20} color="#ff5656" />
-                                    <Text style={[styles.quickActionText, { color: "#ff5656" }]}>Wish Day Planla</Text>
-                                </TouchableOpacity>
-                            </View>
+                                    <View style={styles.quickActionContainer}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.quickActionButton,
+                                                { backgroundColor: "#abca829e" }
+                                            ]}
+                                            onPress={() =>
+                                                navigation.navigate("CreatePlace", {
+                                                    defaultDate: selectedDate,
+                                                    initialStatus: 2
+                                                })
+                                            }
+                                        >
+                                            <Ionicons
+                                                name="location"
+                                                size={20}
+                                                color="#234f78"
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.quickActionText,
+                                                    { color: "#424452" }
+                                                ]}
+                                            >
+                                                Mekan Ekle
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.quickActionButton,
+                                                { backgroundColor: "#fcbebe" }
+                                            ]}
+                                            onPress={() =>
+                                                navigation.navigate("CreateWishlist", {
+                                                    defaultDate: selectedDate
+                                                })
+                                            }
+                                        >
+                                            <Ionicons
+                                                name="heart"
+                                                size={20}
+                                                color="#ff5656"
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.quickActionText,
+                                                    { color: "#ff5656" }
+                                                ]}
+                                            >
+                                                Wish Day Planla
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
                             </ScrollView>
                         )}
                     </SafeAreaView>
@@ -282,17 +549,127 @@ export default function CalendarScreen({ navigation }: any) {
         </View>
     );
 }
+
 const styles = StyleSheet.create({
-    // --- HIZLI AKSİYON BUTONLARI STİLLERİ ---
+    detailsCard: {
+        marginTop: 16,
+        marginHorizontal: 20,
+        backgroundColor: "#9ab8d4",
+        borderRadius: 24,
+        padding: 18,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        elevation: 3
+    },
+    legendRow: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 18,
+        marginBottom: 18
+    },
+    legendItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6
+    },
+    legendVisitedDot: {
+        width: 14,
+        height: 14,
+        borderRadius: 5,
+        backgroundColor: "#000000"
+    },
+    legendText: {
+        fontSize: 13,
+        color: "#5c697b",
+        fontWeight: "600"
+    },
+    detailsHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16
+    },
+    detailsDate: {
+        flex: 1,
+        fontSize: 18,
+        fontWeight: "800",
+        color: "#102a43",
+        paddingRight: 12
+    },
+    weatherPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.72)",
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12
+    },
+    weatherText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#102a43"
+    },
+    emptyCard: {
+        backgroundColor: "rgba(255,255,255,0.72)",
+        padding: 24,
+        borderRadius: 20,
+        alignItems: "center",   
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+        borderStyle: "dashed",
+        marginBottom: 16
+    },
+    emptyText: {
+        color: "#64748b",
+        fontSize: 15,
+        textAlign: "center",
+        fontWeight: "500"
+    },
+    eventsList: {
+        marginBottom: 16,
+        color   : "#94a3b8"
+    },
+    placeCard: {
+        flexDirection: "row",
+         backgroundColor: "#F6F1FF",
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+        borderLeftWidth: 5
+    },
+    placeIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 16
+    },
+    placeTitle: {
+        fontSize: 16,
+        fontWeight: "800",
+        color: "#102a43"
+    },
+    placeMeta: {
+        fontSize: 13,
+        color: "#64748b",
+        marginTop: 4
+    },
     quickActionContainer: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginTop: 24,
-        marginHorizontal: 24, // Üstteki liste ile aynı hizada olması için
-        gap: 12, 
+        gap: 12
     },
     quickActionButton: {
-        flex: 1, 
+        flex: 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -302,11 +679,11 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 6,
-        elevation: 2,
+        
     },
     quickActionText: {
         fontWeight: "700",
         fontSize: 14,
-        marginLeft: 8, 
-    },
+        marginLeft: 8
+    }
 });

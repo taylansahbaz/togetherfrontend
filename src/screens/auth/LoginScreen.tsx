@@ -142,8 +142,8 @@ export default function LoginScreen({ navigation }: any) {
                       width: 350, // Logonun genişliği
                       height: 350, // Logonun yüksekliği
                       resizeMode: "contain", // Logonun oranlarını bozmadan sığdırır
-                      marginTop: -60, // Logoyu yukarı kaydırarak başlığa daha yakın hale getiri
-                      marginBottom: 100,
+                      marginTop: -40, // Logoyu yukarı kaydırarak başlığa daha yakın hale getiri
+                      marginBottom: 80,
                       opacity: 0.8,
                     }}
                   />
@@ -200,12 +200,13 @@ export default function LoginScreen({ navigation }: any) {
                       <Text
                         style={{
                           fontSize: 21,
-                          fontWeight: "200",
+                          fontWeight: "400",
                           color: "rgba(255, 255, 255, 0.9)",
                           textAlign: "center",
                         }}
                       >
-                        Don't have an account? Sign Up
+                        Don't have an account?{" "}
+                         <Text style={{ color: "#F4E7A1" }}>Sign Up</Text>
                       </Text>
                     </Pressable>
                   </View>

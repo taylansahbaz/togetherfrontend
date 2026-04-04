@@ -21,7 +21,7 @@ export default function AppButton({
       style={{
         backgroundColor: disabled
           ? "rgba(255,255,255,0.22)"
-          : "rgba(47, 126, 141, 0.88)",
+          : "rgba(201, 120, 120, 0.9)",
         paddingVertical: 17,
         borderRadius: 18,
         alignItems: "center",

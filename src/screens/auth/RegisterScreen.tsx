@@ -1,15 +1,15 @@
 import React, { useState } from "react";
 import {
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    Text,
-    View,
-    useWindowDimensions
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions
 } from "react-native";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
@@ -121,19 +121,19 @@ export default function RegisterScreen({ navigation }: any) {
                   }}
                 >
                 <Image 
-                                    source={require("../../../assets/images/logoyazisiz.png")} // Logonun ismini klasöründekiyle eşleşecek şekilde değiştir
+                                    source={require("../../../assets/images/welcometo.png")} // Logonun ismini klasöründekiyle eşleşecek şekilde değiştir
                                     style={{
                                       
-                                      width: 350, // Logonun genişliği
-                                      height: 350, // Logonun yüksekliği
+                                      width: 340, // Logonun genişliği
+                                      height: 340, // Logonun yüksekliği
                                       resizeMode: "contain", // Logonun oranlarını bozmadan sığdırır
-                                      marginTop: -60, // Logoyu yukarı kaydırarak başlığa daha yakın hale getiri
-                                      marginBottom: 30,
+                                      marginTop: 70, // Logoyu yukarı kaydırarak başlığa daha yakın hale getiri
+                                      marginBottom: -20,
                                       opacity: 0.8,
                                     }}
                                   />
 
-                  {/* ALT BAŞLIK */}
+                  {/* ALT BAŞLIK
                   <Text
                     style={{
                       fontSize: 14,
@@ -146,7 +146,7 @@ export default function RegisterScreen({ navigation }: any) {
                     }}
                   >
                     Create your account
-                  </Text>
+                  </Text> */}
 
                   {/* HATA MESAJI KUTUSU */}
                   <ErrorMessage message={error} />
@@ -157,7 +157,8 @@ export default function RegisterScreen({ navigation }: any) {
                       label="Name"
                       value={name}
                       onChangeText={setName}
-                      placeholder="Name"
+                      keyboardType="default"
+                      placeholder="Full Name"
                     />
 
                     <AppInput
@@ -187,18 +188,19 @@ export default function RegisterScreen({ navigation }: any) {
                     {/* LOGIN'E DÖNÜŞ LİNKİ */}
                     <Pressable
                       onPress={() => navigation.navigate("Login")}
-                      style={{ marginTop: 30, alignSelf: "center", padding: 10 }}
+                      style={{ marginTop: 10, alignSelf: "center", padding: 10 }}
                     >
-                      <Text
-                        style={{
-                          fontSize: 20,
-                          fontWeight: "200",
-                          color: "rgba(255, 255, 255, 0.9)",
-                          textAlign: "center",
-                        }}
-                      >
-                        Already have an account? Login
-                      </Text>
+                     <Text
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "400",
+                      color: "rgba(255, 255, 255, 0.9)",
+                      textAlign: "center",
+                    }}
+                  >
+                    Already have an account?{" "}
+                    <Text style={{ color: "#F4E7A1" }}>Login</Text>
+                  </Text>
                     </Pressable>
                   </View>
                 </View>

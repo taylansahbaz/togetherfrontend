@@ -8,14 +8,14 @@ const Stack = createNativeStackNavigator();
 
 export default function WishlistStackNavigator() {
     return (
-        <Stack.Navigator>
+        <Stack.Navigator> 
             {/* Ana Liste Ekranı */}
-            <Stack.Screen name="WishlistScreen" component={WishlistScreen} options={{ title: "Wishlist" }} />
+            <Stack.Screen name="WishlistScreen" component={WishlistScreen} options={{  headerShown: false }} />
             {/* ÖNEMLİ: CreatePlace ve PlaceDetail ekranlarını buraya da ekliyoruz. 
                 Böylece Wishlist içinden yönlendirme yapınca navigatör bunları bulabilecek.
             */}
 
-            <Stack.Screen name="CreateWishlist" component={CreateWishlistScreen} />
+            <Stack.Screen name="CreateWishlist" component={CreateWishlistScreen} options={{ headerShown: false }} />
             
             <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{ title: "Place Detail" }} />
         </Stack.Navigator>

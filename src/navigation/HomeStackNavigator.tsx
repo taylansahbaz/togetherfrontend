@@ -18,7 +18,7 @@ export default function HomeStackNavigator() {
                 component={HomeScreen} 
                 options={{ headerShown: false }} 
             />
-            <Stack.Screen name="CreatePlace" component={CreatePlaceScreen} options={{ title: "Create & Edit Place" }} />
+            <Stack.Screen name="CreatePlace" component={CreatePlaceScreen} options={{headerShown: false  }} />
             <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{ title: "Place Detail" }} />
             <Stack.Screen name="EditReview" component={EditReviewScreen} options={{ title: "Review" }} />
             <Stack.Screen name="UploadPhoto" component={UploadPhotoScreen} options={{ title: "Upload Photo" }} />

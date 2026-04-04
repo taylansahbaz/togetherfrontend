@@ -1,5 +1,5 @@
 import React, { createContext, useEffect, useMemo, useState } from "react";
-import { getMe, login as loginApi, register as registerApi } from "../api/auth";
+import { appleLogin, getMe, googleLogin, login as loginApi, register as registerApi } from "../api/auth";
 import { LoginRequest, RegisterRequest, User } from "../types/auth";
 import { storage } from "../utils/storage";
 
@@ -10,6 +10,8 @@ interface AuthContextType {
     isLoading: boolean;
     login: (payload: LoginRequest) => Promise<void>;
     register: (payload: RegisterRequest) => Promise<void>;
+    loginWithGoogle: (idToken: string) => Promise<void>;
+    loginWithApple: (payload: { idToken: string; fullName?: string | null }) => Promise<void>;
     logout: () => Promise<void>;
     bootstrap: () => Promise<void>;
     updateUser: (userData: Partial<User>) => void; 
@@ -58,7 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const register = async (payload: RegisterRequest) => {
         await registerApi(payload);
     };
+    const loginWithGoogle = async (idToken: string) => {
+        const result = await googleLogin(idToken);
+        await storage.setToken(result.token);
+        setUser(result.user);
+        setToken(result.token);
+    };
 
+    const loginWithApple = async (payload: { idToken: string; fullName?: string | null }) => {
+        const result = await appleLogin(payload);
+        await storage.setToken(result.token);
+        setUser(result.user);
+        setToken(result.token);
+    };
     // 🚀 YENİ EKLENEN YER: VerifyEmail ekranı kodu doğrulayınca bunu çağıracak
     const authenticateWithToken = async (newToken: string) => {
         await storage.setToken(newToken);
@@ -96,6 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading,
             login,
             register,
+            loginWithGoogle,
+            loginWithApple,
             logout,
             bootstrap,
             updateUser, 

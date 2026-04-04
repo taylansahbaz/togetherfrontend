@@ -228,10 +228,10 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                                 )}
                             />
 
-                            {photos.length > 1 && (
+                            {photos.length > 1 && ( 
                                 <>
                                     <TouchableOpacity
-                                        style={[styles.sliderNavButton, styles.sliderNavLeft]}
+                                        style={[styles.sliderNavButton, styles.sliderNavLeft, { backgroundColor: ('rgba(213, 251, 253, 0.2)') }]}
                                         onPress={() => {
                                             const newIndex = Math.max(currentPhotoIndex - 1, 0);
                                             headerSliderRef.current?.scrollToIndex({ index: newIndex, animated: true });
@@ -242,7 +242,7 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
-                                        style={[styles.sliderNavButton, styles.sliderNavRight]}
+                                        style={[styles.sliderNavButton, styles.sliderNavRight,{backgroundColor :('rgba(213, 251, 253, 0.2)')}]}
                                         onPress={() => {
                                             const newIndex = Math.min(currentPhotoIndex + 1, photos.length - 1);
                                             headerSliderRef.current?.scrollToIndex({ index: newIndex, animated: true });

@@ -21,7 +21,7 @@ export default function AppInput(props: Props) {
         {...rest}
         multiline={multiline}
         autoCapitalize="none"
-        placeholderTextColor="rgba(255,255,255,0.72)"
+        placeholderTextColor="rgba(255,255,255,1)"
         style={{
           borderWidth: 1,
           borderColor: "rgba(255,255,255,0.28)",
@@ -30,7 +30,7 @@ export default function AppInput(props: Props) {
           paddingVertical: multiline ? 16 : 15,
           minHeight: multiline ? 110 : 56,
           textAlignVertical: multiline ? "top" : "center",
-          backgroundColor: "rgba(255,255,255,0.16)",
+          backgroundColor: "rgba(215, 214, 214, 0.50)",
           fontSize: 16,
           color: "#ffffff",
           backdropFilter: "blur(8px)",
