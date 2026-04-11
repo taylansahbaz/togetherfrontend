@@ -1,10 +1,12 @@
+import 'dotenv/config';
+
 export default {
   expo: {
     name: "socialmemory-mobile-clean",
     slug: "socialmemory-mobile-clean",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/logo.png",
+    icon: "./assets/images/applogo.png",
     scheme: "socialmemorymobileclean",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -21,14 +23,12 @@ export default {
       package: "com.taylansahbaz.together",
       config: {
         googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+          apiKey: "AIzaSyCk0XzUBX1U2R7neSR2sJ0TI1TdjcOdx8U",
         },
       },
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
-        foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
-        monochromeImage: "./assets/images/android-icon-monochrome.png",
+        foregroundImage: "./assets/images/applogo.png",
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,

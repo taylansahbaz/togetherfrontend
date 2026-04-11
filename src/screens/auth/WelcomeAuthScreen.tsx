@@ -166,7 +166,7 @@ export default function WelcomeAuthScreen({ navigation }: any) {
   return (
     <View style={{ flex: 1, width, height }}>
       <ImageBackground
-        source={require("../../../assets/images/login-bg.png")}
+       source={require("../../../assets/images/blur50.png")}
         resizeMode="cover"
         style={styles.background}
       >
@@ -199,32 +199,36 @@ export default function WelcomeAuthScreen({ navigation }: any) {
 
                   <View style={styles.form}>
                     <AppInput
-                      label="Name"
                       value={name}
                       onChangeText={setName}
+                      placeholder="İsminizi girin"
                       keyboardType="default"
-                      placeholder="Full Name"
+                      autoCapitalize="words"
+                      autoCorrect={false}
                     />
 
                     <AppInput
-                      label="Email"
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      placeholder="Email"
-                    />
-
-                    <AppInput
-                      label="Password"
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry
-                      placeholder="Password"
-                    />
+                                          value={email}
+                                          onChangeText={setEmail}
+                                          placeholder="Email"
+                                          keyboardType="email-address"
+                                          autoCapitalize="none"
+                                          autoCorrect={false}
+                                        />
+                    
+                                        <AppInput
+                                          value={password}
+                                          onChangeText={setPassword}
+                                          placeholder="Şifre"
+                                          secureTextEntry
+                                          keyboardType="default"
+                                          autoCapitalize="none"
+                                          autoCorrect={false}
+                                        />
 
                     <View style={{ marginTop: 10 }}>
                       <AppButton
-                        title="Create Account"
+                        title="Hesap Oluştur"
                         onPress={onRegister}
                         loading={registerLoading}
                       />
@@ -243,7 +247,7 @@ export default function WelcomeAuthScreen({ navigation }: any) {
                     >
                       <Ionicons name="logo-google" size={22} color="#fff" />
                       <Text style={styles.socialButtonText}>
-                        {googleLoading ? "Please wait..." : "Continue with Google"}
+                        {googleLoading ? "Please wait..." : "Google ile Kayıt Ol"}
                       </Text>
                     </Pressable>
 
@@ -255,7 +259,7 @@ export default function WelcomeAuthScreen({ navigation }: any) {
                       >
                         <Ionicons name="logo-apple" size={24} color="#fff" />
                         <Text style={styles.socialButtonText}>
-                          {appleLoading ? "Please wait..." : "Continue with Apple"}
+                          {appleLoading ? "Please wait..." : "Apple ile Kayıt Ol"}
                         </Text>
                       </Pressable>
                     )}
@@ -265,8 +269,8 @@ export default function WelcomeAuthScreen({ navigation }: any) {
                       style={styles.loginLink}
                     >
                       <Text style={styles.loginText}>
-                        Already have an account?{" "}
-                        <Text style={styles.loginHighlight}>Login</Text>
+                        Bir hesabın var mı {" "}
+                        <Text style={styles.loginHighlight}>Giriş Yap</Text>
                       </Text>
                     </Pressable>
                   </View>

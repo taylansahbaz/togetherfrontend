@@ -1,28 +1,29 @@
 import CategoryPicker from "@/src/components/place/CategoryPicker";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
-    DateTimePickerAndroid,
+  DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
+import CustomAlert from "@/src/components/common/CustomAlert";
 import { api } from "../../api/client";
 import { updatePlace } from "../../api/places";
 import { createReview } from "../../api/reviews";
@@ -30,10 +31,31 @@ import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { PLACE_CATEGORIES } from "../../utils/constants";
 import { getApiErrorMessage } from "../../utils/helpers";
 import {
-    mapCategoryValueToLabel,
-    mapGoogleTypeToCategoryValue,
+  getPlaceCategoryLabel,
+  mapGoogleTypeToCategoryValue,
 } from "../../utils/placeCategories";
-
+const sectionIconColors = {
+  search: {
+    bg: "rgba(109,129,150,0.16)",
+    color: "#5E7082",
+  },
+  calendar: {
+    bg: "rgba(155,168,218,0.16)",
+    color: "#7386B8",
+  },
+  category: {
+    bg: "rgba(231,184,144,0.18)",
+    color: "#C48A58",
+  },
+  photos: {
+    bg: "rgba(236,196,103,0.18)",
+    color: "#C79A2E",
+  },
+  review: {
+    bg: "rgba(224,157,181,0.18)",
+    color: "#C97D9D",
+  },
+};
 const colors = {
   overlay: "rgba(255, 255, 227, 0.46)",
   text: "#4A4A4A",
@@ -46,7 +68,7 @@ const colors = {
   secondary: "#FFFFE3",
   secondaryDark: "#ECECCD",
 
-  card: "rgba(255,255,255,0.78)",
+  card: "rgba(211, 252, 242, 0.38)",
   cardBorder: "rgba(203,203,203,0.52)",
 
   input: "rgba(109,129,150,0.08)",
@@ -68,19 +90,18 @@ const colors = {
 };
 
 const sectionCardStyle = {
-  backgroundColor: colors.card,
+  backgroundColor: "rgba(255,255,255,0.84)",
   borderRadius: 28,
   paddingHorizontal: 12,
   paddingTop: 12,
   paddingBottom: 12,
-  marginBottom: 12,
+  marginBottom: 10,
   borderWidth: 1,
   borderColor: colors.cardBorder,
   shadowColor: "#000",
   shadowOffset: { width: 0, height: 8 },
   shadowOpacity: 0.08,
   shadowRadius: 16,
-  elevation: 4,
 };
 
 const toTitleCase = (str: string) => {
@@ -274,7 +295,7 @@ const DatePickerField = ({
       borderColor: colors.inputBorder,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      marginBottom: 14,
+      marginBottom: 0,
     }}
   >
     <View
@@ -294,8 +315,8 @@ const DatePickerField = ({
     <View style={{ flex: 1 }}>
       <Text
         style={{
-          fontSize: 11,
-          color: colors.muted,
+          fontSize: 12,
+          color: colors.text,
           marginBottom: 3,
           fontWeight: "700",
         }}
@@ -305,7 +326,7 @@ const DatePickerField = ({
       <Text
         style={{
           fontSize: 15,
-          color: value ? colors.text : "#8E9AA5",
+          color: value ? colors.muted : "#8E9AA5",
           fontWeight: value ? "700" : "500",
         }}
       >
@@ -348,19 +369,9 @@ const StarRating = ({
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
+          marginBottom: 0,
         }}
       >
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: "800",
-            color: colors.text,
-          }}
-        >
-          Quick Review
-        </Text>
-
         {score > 0 && (
           <View
             style={{
@@ -477,13 +488,60 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-
+  const [customAlert, setCustomAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: "danger" | "success" | "info";
+    confirmText?: string;
+    showCancelButton?: boolean;
+    onConfirmAction?: (() => void) | null;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "info",
+    confirmText: "Tamam",
+    showCancelButton: false,
+    onConfirmAction: null,
+  });
   const selectedCategoryItem = PLACE_CATEGORIES.find(
     (item) => item.value === category
   );
 
   const previewTitle = useMemo(() => title?.trim(), [title]);
+  const showCustomAlert = ({
+    title,
+    message,
+    type = "info",
+    confirmText = "Tamam",
+    showCancelButton = false,
+    onConfirmAction = null,
+  }: {
+    title: string;
+    message: string;
+    type?: "danger" | "success" | "info";
+    confirmText?: string;
+    showCancelButton?: boolean;
+    onConfirmAction?: (() => void) | null;
+  }) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      type,
+      confirmText,
+      showCancelButton,
+      onConfirmAction,
+    });
+  };
 
+  const closeCustomAlert = () => {
+    setCustomAlert((prev) => ({
+      ...prev,
+      visible: false,
+    }));
+  };
   const fetchPredictions = async (input: string) => {
     if (!input || input.length < 3) {
       setPredictions([]);
@@ -673,15 +731,19 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert("Hata", "Lütfen bir mekan seçin veya başlık girin.");
+      showCustomAlert({
+        title: "Eksik Bilgi",
+        message: "Lütfen bir mekan seçin veya başlık girin.",
+        type: "info",
+      });
       return;
-    }
+          }
 
     const formattedTitle = toTitleCase(title);
     const formattedCity = toTitleCase(city);
 
     const categoryLabel =
-      mapCategoryValueToLabel?.(category) || toTitleCase(category);
+      getPlaceCategoryLabel?.(category) || toTitleCase(category);
 
     let finalVisitDate = null;
 
@@ -692,7 +754,11 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
         if (!isNaN(dateObj.getTime())) {
           finalVisitDate = dateObj.toISOString();
         } else {
-          Alert.alert("Uyarı", "Geçerli bir tarih seçin.");
+          showCustomAlert({
+            title: "Geçersiz Tarih",
+            message: "Geçerli bir tarih seçin.",
+            type: "info",
+          });
           return;
         }
       } else {
@@ -703,21 +769,28 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
     try {
       setIsSaving(true);
       let createdPlaceId = editPlaceId;
-
-      if (editPlaceId) {
-        await updatePlace(editPlaceId, {
+      const payload: any = {
           title: formattedTitle,
-          category: categoryLabel,
+          category:categoryLabel,
           city: formattedCity,
           address,
           latitude: latitude ? parseFloat(latitude) : 0,
           longitude: longitude ? parseFloat(longitude) : 0,
-          visitDate: finalVisitDate,
           description,
-        });
+        };
+        
+        if (finalVisitDate) {
+          payload.visitdate = finalVisitDate;
+        }
+      if (editPlaceId) {
+        await updatePlace(editPlaceId, payload);
       } else {
         if (!selectedGroupId) {
-          Alert.alert("Hata", "Lütfen bir grup seçin.");
+          showCustomAlert({
+            title: "Grup Seçilmedi",
+            message: "Lütfen bir grup seçin.",
+            type: "info",
+          });
           return;
         }
 
@@ -732,7 +805,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
           status: initialStatus,
           description,
         };
-
+        
         if (initialStatus === 2) {
           payload.visitDate = finalVisitDate;
         }
@@ -771,10 +844,24 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
         }
       }
 
-      Alert.alert("Başarılı", "Mekan kaydedildi.");
-      navigation.goBack();
-    } catch (err) {
-      Alert.alert("Hata", getApiErrorMessage(err));
+      showCustomAlert({
+          title: "Başarılı",
+          message: editPlaceId
+            ? "Mekan başarıyla güncellendi."
+            : "Mekan başarıyla kaydedildi.",
+          type: "success",
+          confirmText: "Tamam",
+          showCancelButton: false,
+          onConfirmAction: () => navigation.goBack(),
+        });
+    } catch (err : any) {
+       showCustomAlert({
+          title: "Bir Sorun Oluştu",
+          message: getApiErrorMessage(err),
+          type: "danger",
+          confirmText: "Kapat",
+          showCancelButton: false,
+        });
     } finally {
       setIsSaving(false);
     }
@@ -808,256 +895,215 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                 }}
               >
                 <LinearGradient
-                  colors={["rgba(255,255,255,0.84)", "rgba(255,255,227,0.94)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{
-                    borderRadius: 30,
-                    padding: 22,
-                    marginBottom: 0,
-                    marginTop: 12,
-                    overflow: "hidden",
-                    borderWidth: 1,
-                    borderColor: "rgba(203,203,203,0.46)",
-                  }}
-                >
-                  <View
+                    colors={["rgba(255,255,255,0.80)", "rgba(255,255,227,0.92)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={{
-                      position: "absolute",
-                      top: -32,
-                      right: -18,
-                      width: 130,
-                      height: 130,
-                      borderRadius: 65,
-                      backgroundColor: "rgba(109,129,150,0.10)",
-                    }}
-                  />
-                  <View
-                    style={{
-                      position: "absolute",
-                      bottom: -18,
-                      left: -8,
-                      width: 90,
-                      height: 90,
-                      borderRadius: 45,
-                      backgroundColor: "rgba(255,255,227,0.96)",
-                    }}
-                  />
-
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 28,
-                        backgroundColor: "rgba(109,129,150,0.14)",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        marginRight: 14,
-                      }}
-                    >
-                      <Ionicons
-                        name="location-outline"
-                        size={26}
-                        color={colors.primaryDark}
-                      />
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 28,
-                          fontWeight: "900",
-                          color: colors.text,
-                          lineHeight: 32,
-                        }}
-                      >
-                        {editPlaceId ? "Edit Memory" : "New Memory"}
-                      </Text>
-                      <Text
-                        style={{
-                          marginTop: 6,
-                          fontSize: 13,
-                          color: colors.muted,
-                          lineHeight: 18,
-                        }}
-                      >
-                        {isVisitedPlace
-                          ? "Log your experience with details, photos and rating."
-                          : "Save a place to remember later."}
-                      </Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-
-                {!editPlaceId && (
-                  <View style={{ zIndex: 9999, marginTop: 10, marginBottom: 10 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        backgroundColor: colors.input,
-                        borderRadius: 18,
+                        borderRadius: 26,
+                        padding: 16,
+                        marginTop: 12,
+                        marginBottom: 12,
+                        overflow: "hidden",
                         borderWidth: 1,
-                        borderColor: colors.inputBorder,
-                        paddingHorizontal: 14,
-                        minHeight: 58,
-                      }}
+                        borderColor: "rgba(203,203,203,0.42)",
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 16,
+                        elevation: 4,
+                        zIndex: 9999,
+                    }}
                     >
-                      <View
+                    <View
                         style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 17,
-                          backgroundColor: colors.softBlue,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          marginRight: 10,
+                        position: "absolute",
+                        top: -24,
+                        right: -10,
+                        width: 90,
+                        height: 90,
+                        borderRadius: 45,
+                        backgroundColor: "rgba(109,129,150,0.10)",
                         }}
-                      >
-                        <Ionicons
-                          name="search"
-                          size={17}
-                          color={colors.primaryDark}
-                        />
-                      </View>
-
-                      <TextInput
-                        placeholder="Search a cafe, restaurant, park..."
-                        placeholderTextColor="#8E9AA5"
-                        value={searchQuery}
-                        onChangeText={handleSearchChange}
+                    />
+                    <View
                         style={{
-                          flex: 1,
-                          height: 54,
-                          fontSize: 15,
-                          color: colors.text,
+                        position: "absolute",
+                        bottom: -18,
+                        left: -8,
+                        width: 70,
+                        height: 70,
+                        borderRadius: 35,
+                        backgroundColor: "rgba(255,255,255,0.34)",
                         }}
-                      />
+                    />
 
-                      {isSearching && (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.primaryDark}
-                        />
-                      )}
-
-                      {searchQuery.length > 0 && !isSearching && (
-                        <TouchableOpacity
-                          onPress={() => {
-                            setSearchQuery("");
-                            setPredictions([]);
-                            setShowDropdown(false);
-                          }}
-                        >
-                          <Ionicons
-                            name="close-circle"
-                            size={18}
-                            color={colors.primaryDark}
-                          />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
-                    {showDropdown && predictions.length > 0 && (
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: 66,
-                          left: 0,
-                          right: 0,
-                          backgroundColor: "rgba(255,255,255,0.98)",
-                          borderRadius: 20,
-                          padding: 8,
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 8 },
-                          shadowOpacity: 0.14,
-                          shadowRadius: 18,
-                          elevation: 10,
-                          zIndex: 10000,
-                        }}
-                      >
-                        {predictions.map((item, index) => (
-                          <TouchableOpacity
-                            key={`${item.placeId}-${index}`}
-                            onPress={() =>
-                              handleSelectPrediction(item.placeId, item.mainText)
-                            }
+                    {!editPlaceId && (
+                        <>
+                        <Text
                             style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              paddingVertical: 12,
-                              paddingHorizontal: 12,
-                              borderBottomWidth:
-                                index === predictions.length - 1 ? 0 : 1,
-                              borderBottomColor: "#EEF1F4",
+                            fontSize: 12,
+                            fontWeight: "800",
+                            color: colors.muted,
+                            marginBottom: 8,
+                            marginLeft: 2,
                             }}
-                          >
+                        >
+                            Mekan
+                        </Text>
+
+                        <View
+                            style={{
+                            backgroundColor: "rgba(255,255,255,0.42)",
+                            borderRadius: 18,
+                            borderWidth: 1,
+                            borderColor: "rgba(109,129,150,0.14)",
+                            paddingHorizontal: 14,
+                            minHeight: 56,
+                            justifyContent: "center",
+                            }}
+                        >
+                            <TextInput
+                            placeholder="Bir mekan ara..."
+                            placeholderTextColor="#8E9AA5"
+                            value={searchQuery}
+                            onChangeText={handleSearchChange}
+                            style={{
+                                fontSize: 15,
+                                color: colors.text,
+                                fontWeight: searchQuery ? "700" : "500",
+                            }}
+                            />
+                        </View>
+
+                        {showDropdown && predictions.length > 0 && (
                             <View
-                              style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: 20,
-                                backgroundColor: colors.softBlue,
-                                justifyContent: "center",
-                                alignItems: "center",
-                                marginRight: 12,
-                              }}
+                            style={{
+                                marginTop: 8,
+                                backgroundColor: "rgba(255,255,255,0.98)",
+                                borderRadius: 18,
+                                padding: 8,
+                                borderWidth: 1,
+                                borderColor: "rgba(203,203,203,0.35)",
+                                shadowColor: "#000",
+                                shadowOffset: { width: 0, height: 8 },
+                                shadowOpacity: 0.12,
+                                shadowRadius: 18,
+                                elevation: 10,
+                            }}
                             >
-                              <Ionicons
-                                name="location"
-                                size={18}
-                                color={colors.primaryDark}
-                              />
-                            </View>
-
-                            <View style={{ flex: 1 }}>
-                              <Text
+                            {predictions.map((item, index) => (
+                                <TouchableOpacity
+                                key={`${item.placeId}-${index}`}
+                                onPress={() =>
+                                    handleSelectPrediction(item.placeId, item.mainText)
+                                }
                                 style={{
-                                  fontSize: 15,
-                                  fontWeight: "800",
-                                  color: colors.text,
+                                    paddingVertical: 12,
+                                    paddingHorizontal: 12,
+                                    borderBottomWidth: index === predictions.length - 1 ? 0 : 1,
+                                    borderBottomColor: "#EEF1F4",
                                 }}
-                              >
-                                {item.mainText}
-                              </Text>
-
-                              {item.secondaryText ? (
-                                <Text
-                                  numberOfLines={1}
-                                  style={{
-                                    marginTop: 2,
-                                    fontSize: 13,
-                                    color: colors.muted,
-                                  }}
                                 >
-                                  {item.secondaryText}
+                                <Text
+                                    style={{
+                                    fontSize: 15,
+                                    fontWeight: "800",
+                                    color: colors.text,
+                                    }}
+                                >
+                                    {item.mainText}
                                 </Text>
-                              ) : null}
+
+                                {item.secondaryText ? (
+                                    <Text
+                                    numberOfLines={1}
+                                    style={{
+                                        marginTop: 3,
+                                        fontSize: 12,
+                                        color: colors.muted,
+                                    }}
+                                    >
+                                    {item.secondaryText}
+                                    </Text>
+                                ) : null}
+                                </TouchableOpacity>
+                            ))}
                             </View>
+                        )}
+                        </>
+                    )}
+
+                    {isVisitedPlace && (
+                        <View style={{ marginTop: !editPlaceId ? 12 : 0 }}>
+                        <Text
+                            style={{
+                            fontSize: 12,
+                            fontWeight: "800",
+                            color: colors.muted,
+                            marginBottom: 8,
+                            marginLeft: 2,
+                            }}
+                        >
+                            Ziyaret Tarihi
+                        </Text>
+
+                        <Pressable
+                            onPress={openDatePicker}
+                            style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            backgroundColor: "rgba(255,255,255,0.42)",
+                            borderRadius: 18,
+                            borderWidth: 1,
+                            borderColor: "rgba(109,129,150,0.14)",
+                            paddingHorizontal: 14,
+                            paddingVertical: 14,
+                            }}
+                        >
+                            <Text
+                            style={{
+                                fontSize: 15,
+                                color: visitDate ? colors.text : "#8E9AA5",
+                                fontWeight: visitDate ? "800" : "500",
+                            }}
+                            >
+                            {visitDate || "Tarih seç"}
+                            </Text>
+
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            {visitDate ? (
+                                <TouchableOpacity
+                                onPress={() => setVisitDate("")}
+                                style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 14,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: "rgba(255,255,255,0.78)",
+                                    marginRight: 6,
+                                }}
+                                >
+                                <Ionicons name="close" size={15} color={colors.primaryDark} />
+                                </TouchableOpacity>
+                            ) : null}
 
                             <Ionicons
-                              name="chevron-forward"
-                              size={18}
-                              color="#A9B4BE"
+                                name="calendar-outline"
+                                size={18}
+                                color={colors.primaryDark}
                             />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+                            </View>
+                        </Pressable>
+                        </View>
                     )}
-                  </View>
-                )}
+                    </LinearGradient>
 
                 <View style={sectionCardStyle}>
                   <SectionTitle
                     icon="grid-outline"
                     title="Kategori Seç"
-                    subtitle="Mekana en uygun kategoriyi seç."
                   />
 
                   {previewTitle ? (
@@ -1138,7 +1184,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                             {!!category && (
                               <InfoChip
                                 text={
-                                  mapCategoryValueToLabel?.(category) || category
+                                  getPlaceCategoryLabel?.(category) || category
                                 }
                                 variant="blue"
                               />
@@ -1155,19 +1201,6 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
 
                 {isVisitedPlace && (
                   <>
-                    <View style={sectionCardStyle}>
-                      <SectionTitle
-                        icon="calendar-outline"
-                        title="Visit Date"
-                        subtitle="Leave empty to use today."
-                      />
-
-                      <DatePickerField
-                        value={visitDate}
-                        onPress={openDatePicker}
-                        onClear={() => setVisitDate("")}
-                      />
-                    </View>
 
                     <View style={sectionCardStyle}>
                       <SectionTitle
@@ -1197,7 +1230,22 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                           + Add Photos
                         </Text>
                       </TouchableOpacity>
-
+                      <CustomAlert
+                        visible={customAlert.visible}
+                        title={customAlert.title}
+                        message={customAlert.message}
+                        type={customAlert.type}
+                        confirmText={customAlert.confirmText}
+                        showCancelButton={customAlert.showCancelButton}
+                        onCancel={closeCustomAlert}
+                        onConfirm={() => {
+                          const action = customAlert.onConfirmAction;
+                          closeCustomAlert();
+                          if (action) {
+                            action();
+                          }
+                        }}
+                      />
                       {selectedImages.length > 0 ? (
                         <ScrollView
                           horizontal
@@ -1256,7 +1304,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                     {!editPlaceId && (
                       <View style={sectionCardStyle}>
                         <SectionTitle
-                          icon="star-outline"
+                          icon="star-sharp"
                           title="Quick Review"
                           subtitle="Optional rating and short comment."
                         />

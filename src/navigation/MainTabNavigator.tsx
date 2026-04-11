@@ -20,18 +20,18 @@ export default function MainTabNavigator() {
                     let iconName;
 
                     if (route.name === "HomeTab") {
-                        iconName = focused ? "home" : "home-outline";
+                        iconName = focused ? "home" : "home";
                     } else if (route.name === "CalendarTab") {
-                        iconName = focused ? "calendar" : "calendar-outline";
+                        iconName = focused ? "calendar" : "calendar";
                     } else if (route.name === "MapTab") {
-                        iconName = focused ? "map" : "map-outline";
+                        iconName = focused ? "map" : "map";
                     } else if (route.name === "WishlistTab") {
-                        iconName = focused ? "heart" : "heart-outline";
+                        iconName = focused ? "heart" : "heart";
                     } else if (route.name === "ProfileTab") {
-                        iconName = focused ? "person" : "person-outline";
+                        iconName = focused ? "person" : "person";
                     }
 
-                    return <Ionicons name={iconName as any} size={26} color={color} style={{ marginBottom: 4 }} />;
+                    return <Ionicons name={iconName as any} size={25} color={color} style={{ marginBottom: 4 }} />;
                 },
 
                 // RENK VE STİL AYARLARI
@@ -41,10 +41,10 @@ export default function MainTabNavigator() {
                     backgroundColor: "#ffffff",
                     borderTopWidth: 0,
 
-                    height: 60, // Toplam yüksekliği 60 yaptık
+                    height: 55, // Toplam yüksekliği 60 yaptık
                     paddingBottom: 0, // Alt boşluğu azalttık ki yazılar rahatça sığsın
-                    paddingTop: 8, // Üstten hafif boşluk
-
+                    paddingTop: 2, // Üstten hafif boşluk
+                    paddingHorizontal: 8, // Yatayda biraz boşluk
                     elevation: 0,
                     shadowColor: "#000",
                     shadowOffset: { width: 0, height: -4 },
@@ -59,11 +59,11 @@ export default function MainTabNavigator() {
                 }
             })}
         >
-            <Tab.Screen name="CalendarTab" component={CalendarScreen} options={{ tabBarLabel: 'Calendar' }} />
-            <Tab.Screen name="MapTab" component={MapScreen} options={{ title: "Map" }} />
-            <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Home" }} />
-            <Tab.Screen name="WishlistTab" component={WishlistStackNavigator} options={{ title: "Wishlist" }} />
-           <Tab.Screen name="ProfileTab" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profil' }} />
+            <Tab.Screen name="CalendarTab" component={CalendarScreen} options={{ tabBarLabel: 'Takvim' }} />
+            <Tab.Screen name="MapTab" component={MapScreen} options={{ title: "Harita" }} />
+            <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Ana Sayfa" }} />
+            <Tab.Screen name="WishlistTab" component={WishlistStackNavigator} options={{ title: "Planlar" }} />
+            <Tab.Screen name="ProfileTab" component={ProfileStackNavigator} options={{ tabBarLabel: "Profil" }} listeners={({ navigation }) => ({tabPress: () => {navigation.navigate("ProfileTab", {screen: "ProfileHome", }); }, })} />
         </Tab.Navigator>
     );
 }

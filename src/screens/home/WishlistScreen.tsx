@@ -2,23 +2,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    Alert,
-    ImageBackground,
-    Pressable,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ImageBackground,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
+import { PLACE_CATEGORIES } from "@/src/utils/constants";
 import { api } from "../../api/client";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { Place } from "../../types/place";
 import { getApiErrorMessage } from "../../utils/helpers";
-import { getPlaceCategoryIcon, getPlaceCategoryLabel } from "../../utils/placeCategories";
+import { getPlaceCategoryImage, getPlaceCategoryLabel } from "../../utils/placeCategories";
 const colors = {
   overlay: "rgba(255,255,255,0.78)",
   text: "#102A43",
@@ -48,19 +50,6 @@ const getUniqueCityCount = (places: Place[]) => {
   return new Set(
     places.map((x) => x.city?.trim()).filter((x): x is string => !!x)
   ).size;
-};
-
-const getCategoryIcon = (category?: string) => {
-  const value = (category || "").toLocaleLowerCase("tr-TR");
-
-  if (value.includes("kahve") || value.includes("cafe")) return "cafe-outline";
-  if (value.includes("tatlı") || value.includes("dessert")) return "ice-cream-outline";
-  if (value.includes("yemek") || value.includes("restaurant")) return "restaurant-outline";
-  if (value.includes("museum") || value.includes("müze")) return "library-outline";
-  if (value.includes("beach") || value.includes("deniz")) return "sunny-outline";
-  if (value.includes("doğa") || value.includes("park")) return "leaf-outline";
-
-  return "heart-outline";
 };
 
 const HeroChip = ({
@@ -182,8 +171,11 @@ const WishlistCard = ({
   onMarkAsVisited: () => void;
 }) => {
     
-  const categoryIcon = getPlaceCategoryIcon(place.category);
-  const categoryLabel = getPlaceCategoryLabel(place.category);
+const categoryItem = PLACE_CATEGORIES.find(
+  (item) => item.value === place.category
+);  
+const categoryImage = getPlaceCategoryImage(place.category);
+const categoryLabel = getPlaceCategoryLabel(place.category);
   const visitDate = formatVisitDate((place as any).visitDate);
 
   return (
@@ -211,23 +203,31 @@ const WishlistCard = ({
         }}
       >
         <View style={{ flexDirection: "row", flex: 1, marginRight: 12 }}>
-          <View
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              backgroundColor: "rgba(255,255,255,0.58)",
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 12,
-            }}
-          >
+        <View
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            backgroundColor: "rgba(255,255,255,0.58)",
+            justifyContent: "center",
+            alignItems: "center",
+            marginRight: 12,
+          }}
+        >
+          {categoryImage ? (
+            <Image
+              source={categoryImage}
+              resizeMode="contain"
+              style={{ width: 22, height: 22 }}
+            />
+          ) : (
             <Ionicons
-              name={categoryIcon as any}
+              name="location-outline"
               size={18}
               color={colors.primary}
             />
-          </View>
+          )}
+        </View>
 
           <View style={{ flex: 1 }}>
             <View
@@ -543,7 +543,7 @@ export default function WishlistScreen({ navigation }: any) {
                       }}
                     >
                       {selectedGroup?.name
-                        ? `${selectedGroup.name} ile kaydettiğiniz wishlist yerleri burada görebilirsiniz.`
+                        ? "Gitmek istediginiz yerleri görebilirsiniz."
                         : "Your saved places for the next sweet memories together."}
                     </Text>
                   </View>

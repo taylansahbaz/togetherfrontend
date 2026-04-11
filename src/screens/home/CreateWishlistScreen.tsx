@@ -1,11 +1,13 @@
+import CustomAlert from "@/src/components/common/CustomAlert";
 import CategoryPicker from "@/src/components/place/CategoryPicker";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ImageBackground,
   KeyboardAvoidingView,
   Modal,
@@ -23,6 +25,7 @@ import { updatePlace } from "../../api/places";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { getApiErrorMessage } from "../../utils/helpers";
 import { mapGoogleTypeToCategoryValue } from "../../utils/placeCategories";
+
 const colors = {
   overlay: "rgba(255, 248, 246, 0.78)",
   text: "#24324A",
@@ -51,7 +54,7 @@ const sectionCardStyle = {
   paddingHorizontal: 12,
   paddingTop: 10,
   paddingBottom: 10,
-  marginBottom:10,
+  marginBottom: 10,
   marginTop: 0,
   borderWidth: 1,
   borderColor: colors.cardBorder,
@@ -60,6 +63,20 @@ const sectionCardStyle = {
   shadowOpacity: 0.12,
   shadowRadius: 16,
   elevation: 4,
+};
+
+type AlertType = "info" | "success" | "danger";
+
+type AlertState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  type: AlertType;
+  confirmText: string;
+  cancelText: string;
+  showCancelButton: boolean;
+  onConfirm?: () => void | Promise<void>;
+  onCancel?: () => void | Promise<void>;
 };
 
 const toTitleCase = (str: string) => {
@@ -201,69 +218,6 @@ const FormField = ({
   </View>
 );
 
-const InfoChip = ({
-  text,
-  variant = "pink",
-}: {
-  text: string;
-  variant?: "pink" | "peach";
-}) => (
-  <View
-    style={{
-      backgroundColor:
-        variant === "pink" ? colors.chipPinkBg : colors.chipPeachBg,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 999,
-      marginRight: 8,
-      marginBottom: 8,
-    }}
-  >
-    <Text
-      style={{
-        fontSize: 12,
-        fontWeight: "700",
-        color:
-          variant === "pink" ? colors.chipPinkText : colors.chipPeachText,
-      }}
-    >
-      {text}
-    </Text>
-  </View>
-);
-
-const QuickSearchChip = ({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) => (
-  <TouchableOpacity
-    onPress={onPress}
-    style={{
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 999,
-      backgroundColor: "rgba(255,255,255,0.66)",
-      borderWidth: 1,
-      borderColor: "rgba(245,140,168,0.10)",
-      marginRight: 8,
-      marginBottom: 8,
-    }}
-  >
-    <Text
-      style={{
-        fontSize: 12,
-        fontWeight: "700",
-        color: colors.primaryDark,
-      }}
-    >
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
-
 const DatePickerField = ({
   value,
   onPress,
@@ -378,9 +332,56 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
 
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  const [alertState, setAlertState] = useState<AlertState>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "info",
+    confirmText: "Tamam",
+    cancelText: "İptal",
+    showCancelButton: false,
+  });
+
   const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  const previewTitle = useMemo(() => title?.trim(), [title]);
+  const hideAlert = () => {
+    setAlertState((prev) => ({
+      ...prev,
+      visible: false,
+    }));
+  };
+
+  const showAlert = ({
+    title,
+    message,
+    type = "info",
+    confirmText = "Tamam",
+    cancelText = "İptal",
+    showCancelButton = false,
+    onConfirm,
+    onCancel,
+  }: {
+    title: string;
+    message: string;
+    type?: AlertType;
+    confirmText?: string;
+    cancelText?: string;
+    showCancelButton?: boolean;
+    onConfirm?: () => void | Promise<void>;
+    onCancel?: () => void | Promise<void>;
+  }) => {
+    setAlertState({
+      visible: true,
+      title,
+      message,
+      type,
+      confirmText,
+      cancelText,
+      showCancelButton,
+      onConfirm,
+      onCancel,
+    });
+  };
 
   const fetchPredictions = async (input: string) => {
     if (!input || input.length < 3) {
@@ -443,23 +444,25 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
       setIsSearching(false);
     }
   };
-  const openDatePicker = () => {
-  if (Platform.OS === "android") {
-    DateTimePickerAndroid.open({
-      value: parseInputDate(visitDate),
-      mode: "date",
-      is24Hour: true,
-      onChange: (_event, selectedDate) => {
-        if (selectedDate) {
-          setVisitDate(formatDateToInput(selectedDate));
-        }
-      },
-    });
-    return;
-  }
 
-  setShowDatePicker(true);
-};
+  const openDatePicker = () => {
+    if (Platform.OS === "android") {
+      DateTimePickerAndroid.open({
+        value: parseInputDate(visitDate),
+        mode: "date",
+        is24Hour: true,
+        onChange: (_event, selectedDate) => {
+          if (selectedDate) {
+            setVisitDate(formatDateToInput(selectedDate));
+          }
+        },
+      });
+      return;
+    }
+
+    setShowDatePicker(true);
+  };
+
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
 
@@ -472,73 +475,78 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
     }, 500);
   };
 
-const handleSelectPrediction = async (placeId: string, mainText: string) => {
-  setSearchQuery(mainText);
-  setShowDropdown(false);
-  setIsSearching(true);
+  const handleSelectPrediction = async (placeId: string, mainText: string) => {
+    setSearchQuery(mainText);
+    setShowDropdown(false);
+    setIsSearching(true);
 
-  try {
-    const response = await fetch(
-      `https://places.googleapis.com/v1/places/${placeId}?languageCode=tr`,
-      {
-        method: "GET",
-        headers: {
-          "X-Goog-Api-Key": API_KEY || "",
-          "X-Goog-FieldMask":
-            "id,displayName,formattedAddress,location,addressComponents,types",
-        },
-      }
-    );
-
-    const rawText = await response.text();
-
-    if (!response.ok) {
-      Alert.alert(
-        "Google Place Details Error",
-        `STATUS: ${response.status}\n\nRESPONSE:\n${rawText}`
-      );
-      return;
-    }
-
-    const details = JSON.parse(rawText);
-
-    setTitle(
-      details.displayName?.text
-        ? toTitleCase(details.displayName.text)
-        : mainText
-    );
-    setAddress(details.formattedAddress || "");
-
-    if (details.location) {
-      setLatitude(String(details.location.latitude));
-      setLongitude(String(details.location.longitude));
-    }
-
-    if (details.addressComponents) {
-      const cityComponent = details.addressComponents.find(
-        (c: any) =>
-          c.types.includes("administrative_area_level_1") ||
-          c.types.includes("locality")
+    try {
+      const response = await fetch(
+        `https://places.googleapis.com/v1/places/${placeId}?languageCode=tr`,
+        {
+          method: "GET",
+          headers: {
+            "X-Goog-Api-Key": API_KEY || "",
+            "X-Goog-FieldMask":
+              "id,displayName,formattedAddress,location,addressComponents,types",
+          },
+        }
       );
 
-      if (cityComponent) {
-        setCity(toTitleCase(cityComponent.longText));
-      }
-    }
+      const rawText = await response.text();
 
-    if (details.types && details.types.length > 0) {
-      const mappedCategory = mapGoogleTypeToCategoryValue(details.types[0]);
-      setCategory(mappedCategory);
+      if (!response.ok) {
+        showAlert({
+          title: "Hata",
+          message:
+            rawText ||
+            `Google Place detayları alınamadı. (${response.status})`,
+          type: "danger",
+        });
+        return;
+      }
+
+      const details = JSON.parse(rawText);
+
+      setTitle(
+        details.displayName?.text
+          ? toTitleCase(details.displayName.text)
+          : mainText
+      );
+      setAddress(details.formattedAddress || "");
+
+      if (details.location) {
+        setLatitude(String(details.location.latitude));
+        setLongitude(String(details.location.longitude));
+      }
+
+      if (details.addressComponents) {
+        const cityComponent = details.addressComponents.find(
+          (c: any) =>
+            c.types.includes("administrative_area_level_1") ||
+            c.types.includes("locality")
+        );
+
+        if (cityComponent) {
+          setCity(toTitleCase(cityComponent.longText));
+        }
+      }
+
+      if (details.types && details.types.length > 0) {
+        const mappedCategory = mapGoogleTypeToCategoryValue(details.types[0]);
+        setCategory(mappedCategory);
+      }
+    } catch (error: any) {
+      showAlert({
+        title: "Hata",
+        message:
+          error?.message || "Mekan bilgileri alınırken bir sorun oluştu.",
+        type: "danger",
+      });
+    } finally {
+      setIsSearching(false);
     }
-  } catch (error: any) {
-    Alert.alert(
-      "Catch Error",
-      JSON.stringify(error, null, 2) || "Unknown error"
-    );
-  } finally {
-    setIsSearching(false);
-  }
-};
+  };
 
   const handleDateChange = (_event: any, selectedDate?: Date) => {
     if (Platform.OS === "android") {
@@ -552,7 +560,11 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert("Hata", "Lütfen bir mekan seçin veya başlık girin.");
+      showAlert({
+        title: "Hata",
+        message: "Lütfen bir mekan seçin veya başlık girin.",
+        type: "danger",
+      });
       return;
     }
 
@@ -568,10 +580,11 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
       if (!isNaN(dateObj.getTime())) {
         finalVisitDate = dateObj.toISOString();
       } else {
-        Alert.alert(
-          "Uyarı",
-          "Geçerli bir tarih seçin ya da tarihi boş bırakın."
-        );
+        showAlert({
+          title: "Uyarı",
+          message: "Geçerli bir tarih seçin ya da tarihi boş bırakın.",
+          type: "info",
+        });
         return;
       }
     }
@@ -592,7 +605,12 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
         });
       } else {
         if (!selectedGroupId) {
-          Alert.alert("Hata", "Lütfen bir grup seçin.");
+          showAlert({
+            title: "Hata",
+            message: "Lütfen bir grup seçin.",
+            type: "danger",
+          });
+          setIsSaving(false);
           return;
         }
 
@@ -612,10 +630,22 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
         await api.post("/Places/CreatePlace", payload);
       }
 
-      Alert.alert("Başarılı", "Wish Day planı kaydedildi.");
-      navigation.goBack();
+      showAlert({
+        title: "Harika!",
+        message: editPlaceId
+          ? "Wish Day planı başarıyla güncellendi."
+          : "Wish Day planı başarıyla oluşturuldu.",
+        type: "success",
+        onConfirm: () => {
+          navigation.goBack();
+        },
+      });
     } catch (err) {
-      Alert.alert("Hata", getApiErrorMessage(err));
+      showAlert({
+        title: "Hata",
+        message: getApiErrorMessage(err),
+        type: "danger",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -727,167 +757,80 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
                 </LinearGradient>
 
                 {!editPlaceId && (
-                <View style={{ zIndex: 9999, marginTop: 8, marginBottom: 8 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      backgroundColor: colors.input,
-                      borderRadius: 18,
-                      borderWidth: 1,
-                      borderColor: "rgba(245,140,168,0.18)",
-                      paddingHorizontal: 14,
-                      minHeight: 58,
-                    }}
-                  >
+                  <View style={{ zIndex: 9999, marginTop: 8, marginBottom: 8 }}>
                     <View
                       style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 17,
-                        backgroundColor: colors.softPink,
-                        justifyContent: "center",
+                        flexDirection: "row",
                         alignItems: "center",
-                        marginRight: 10,
+                        backgroundColor: colors.input,
+                        borderRadius: 18,
+                        borderWidth: 1,
+                        borderColor: "rgba(245,140,168,0.18)",
+                        paddingHorizontal: 14,
+                        minHeight: 58,
                       }}
                     >
-                      <Ionicons
-                        name="search"
-                        size={17}
-                        color={colors.primary}
-                      />
-                    </View>
-
-                    <TextInput
-                      placeholder="Search a place to visit..."
-                      placeholderTextColor={"#525a67"}
-                      value={searchQuery}
-                      onChangeText={handleSearchChange}
-                      style={{
-                        flex: 1,
-                        height: 54,
-                        fontSize: 15,
-                        color: colors.text,
-                      }}
-                    />
-
-                    {isSearching && (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.primaryDark}
-                      />
-                    )}
-
-                    {searchQuery.length > 0 && !isSearching && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          setSearchQuery("");
-                          setPredictions([]);
-                          setShowDropdown(false);
+                      <View
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 17,
+                          backgroundColor: colors.softPink,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          marginRight: 10,
                         }}
                       >
                         <Ionicons
-                          name="close-circle"
-                          size={18}
+                          name="search"
+                          size={17}
+                          color={colors.primary}
+                        />
+                      </View>
+
+                      <TextInput
+                        placeholder="Search a cafe, restaurant, park..."
+                        placeholderTextColor="#8E9AA5"
+                        value={searchQuery}
+                        onChangeText={handleSearchChange}
+                        style={{
+                          flex: 1,
+                          height: 50,
+                          fontSize: 14,
+                          color: colors.text,
+                          fontWeight: title ? "700" : "500",
+                        }}
+                      />
+
+                      {isSearching && (
+                        <ActivityIndicator
+                          size="small"
                           color={colors.primaryDark}
                         />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                      )}
 
-                  {showDropdown && predictions.length > 0 && (
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: 66,
-                        left: 0,
-                        right: 0,
-                        backgroundColor: "rgba(255,255,255,0.98)",
-                        borderRadius: 20,
-                        padding: 8,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 8 },
-                        shadowOpacity: 0.14,
-                        shadowRadius: 18,
-                        elevation: 10,
-                        zIndex: 10000,
-                      }}
-                    >
-                      {predictions.map((item, index) => (
+                      {searchQuery.length > 0 && !isSearching && (
                         <TouchableOpacity
-                          key={`${item.placeId}-${index}`}
-                          onPress={() =>
-                            handleSelectPrediction(item.placeId, item.mainText)
-                          }
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingVertical: 12,
-                            paddingHorizontal: 12,
-                            borderBottomWidth: index === predictions.length - 1 ? 0 : 1,
-                            borderBottomColor: "#F3F4F6",
+                          onPress={() => {
+                            setSearchQuery("");
+                            setPredictions([]);
+                            setShowDropdown(false);
                           }}
                         >
-                          <View
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 20,
-                              backgroundColor: "rgba(245,140,168,0.12)",
-                              justifyContent: "center",
-                              alignItems: "center",
-                              marginRight: 12,
-                            }}
-                          >
-                            <Ionicons
-                              name="location"
-                              size={18}
-                              color={colors.primaryDark}
-                            />
-                          </View>
-
-                          <View style={{ flex: 1 }}>
-                            <Text
-                              style={{
-                                fontSize: 15,
-                                fontWeight: "800",
-                                color: colors.text,
-                              }}
-                            >
-                              {item.mainText}
-                            </Text>
-
-                            {item.secondaryText ? (
-                              <Text
-                                numberOfLines={1}
-                                style={{
-                                  marginTop: 2,
-                                  fontSize: 13,
-                                  color: colors.muted,
-                                }}
-                              >
-                                {item.secondaryText}
-                              </Text>
-                            ) : null}
-                          </View>
-
                           <Ionicons
-                            name="chevron-forward"
+                            name="close-circle"
                             size={18}
-                            color="#BDC6D1"
+                            color={colors.primaryDark}
                           />
                         </TouchableOpacity>
-                      ))}
+                      )}
                     </View>
-                  )}
-                </View>
-              )}
 
                     {showDropdown && predictions.length > 0 && (
                       <View
                         style={{
                           position: "absolute",
-                          top: 175,
+                          top: 66,
                           left: 0,
                           right: 0,
                           backgroundColor: "rgba(255,255,255,0.98)",
@@ -969,7 +912,8 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
                         ))}
                       </View>
                     )}
-  
+                  </View>
+                )}
 
                 <View style={sectionCardStyle}>
                   <SectionTitle
@@ -977,101 +921,22 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
                     title="Kategori Seç"
                   />
 
-                  {previewTitle ? (
-                    <View
-                      style={{
-                        backgroundColor: "rgba(245,140,168,0.10)",
-                        borderRadius: 20,
-                        padding: 15,
-                        marginBottom: 16,
-                        borderWidth: 1,
-                        borderColor: "rgba(245,140,168,0.16)",
-                      }}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "flex-start",
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 42,
-                            height: 42,
-                            borderRadius: 21,
-                            backgroundColor: "rgba(255,255,255,0.78)",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            marginRight: 12,
-                          }}
-                        >
-                          <Ionicons
-                            name="heart"
-                            size={18}
-                            color={colors.primaryDark}
-                          />
-                        </View>
-
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={{
-                              fontSize: 17,
-                              fontWeight: "900",
-                              color: colors.text,
-                            }}
-                          >
-                            {title}
-                          </Text>
-
-                          {!!address && (
-                            <Text
-                              numberOfLines={2}
-                              style={{
-                                marginTop: 5,
-                                fontSize: 13,
-                                color: colors.muted,
-                                lineHeight: 18,
-                              }}
-                            >
-                              {address}
-                            </Text>
-                          )}
-
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              flexWrap: "wrap",
-                              marginTop: 10,
-                            }}
-                          >
-                            {!!category && (
-                              <InfoChip text={category} variant="pink" />
-                            )}
-                            {!!city && <InfoChip text={city} variant="peach" />}
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  ) : null}
-
                   <View style={{ flexDirection: "row", gap: 10 }}>
                     <View style={{ marginBottom: 14 }}>
-                        <CategoryPicker
-                            value={category}
-                            onChange={setCategory}
-                        />
-                        </View>
-                         </View>
+                      <CategoryPicker
+                        value={category}
+                        onChange={setCategory}
+                      />
+                    </View>
+                  </View>
                 </View>
 
                 <View style={sectionCardStyle}>
-                 
-
-                 <DatePickerField
+                  <DatePickerField
                     value={visitDate}
                     onPress={openDatePicker}
                     onClear={() => setVisitDate("")}
-                    />
+                  />
 
                   <FormField
                     icon="document-text-outline"
@@ -1213,6 +1078,26 @@ const handleSelectPrediction = async (placeId: string, mainText: string) => {
           </SafeAreaView>
         </View>
       </ImageBackground>
+
+      <CustomAlert
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+        confirmText={alertState.confirmText}
+        cancelText={alertState.cancelText}
+        showCancelButton={alertState.showCancelButton}
+        onConfirm={async () => {
+          const callback = alertState.onConfirm;
+          hideAlert();
+          await callback?.();
+        }}
+        onCancel={async () => {
+          const callback = alertState.onCancel;
+          hideAlert();
+          await callback?.();
+        }}
+      />
     </View>
   );
 }

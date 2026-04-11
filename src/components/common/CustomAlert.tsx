@@ -7,15 +7,16 @@ interface CustomAlertProps {
   title: string;
   message: string;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void; // Soru işareti ekledik (Zorunlu değil)
   confirmText?: string;
   cancelText?: string;
   type?: 'danger' | 'success' | 'info';
+  showCancelButton?: boolean; // YENİ: İptal butonunu gizlemek için
 }
 
 export default function CustomAlert({ 
   visible, title, message, onConfirm, onCancel, 
-  confirmText = "Tamam", cancelText = "İptal", type = 'info' 
+  confirmText = "Tamam", cancelText = "İptal", type = 'info', showCancelButton = true
 }: CustomAlertProps) {
   
   const getIcon = () => {
@@ -38,17 +39,19 @@ export default function CustomAlert({
           <Text style={styles.message}>{message}</Text>
 
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelText}>{cancelText}</Text>
-            </TouchableOpacity>
+            {showCancelButton !== false && (
+                <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+                    <Text style={styles.cancelText}>{cancelText}</Text>
+                </TouchableOpacity>
+            )}
             
             <TouchableOpacity 
-              style={[styles.confirmButton, { backgroundColor: getIcon().color }]} 
-              onPress={onConfirm}
+                style={[styles.confirmButton, { backgroundColor: getIcon().color }]} 
+                onPress={onConfirm}
             >
-              <Text style={styles.confirmText}>{confirmText}</Text>
+                <Text style={styles.confirmText}>{confirmText}</Text>
             </TouchableOpacity>
-          </View>
+        </View>
         </View>
       </View>
     </Modal>

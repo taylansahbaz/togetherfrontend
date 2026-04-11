@@ -1,10 +1,11 @@
-export interface Notification {
-    id: string;
-    userId: string;
-    actorName: string; 
-    actionType: "PlaceAdded" | "PhotoAdded" | "ReviewAdded" | "GroupJoined"; 
-    message: string;
-    isRead: boolean;
-    createdAt: string;
-    relatedEntityId?: string; 
+export interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  relatedEntityId?: string | null;
+  createdAt: string;
+  inviteStatus?: string | null;
+  canRespond: boolean;
 }

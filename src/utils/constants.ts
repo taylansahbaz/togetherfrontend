@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://192.168.1.12:5196/api";
+export const API_BASE_URL = "https://togetherbackend-bwrq.onrender.com/api";
 
 export const STORAGE_KEYS = {
     token: "token",
@@ -70,21 +70,12 @@ export const PLACE_CATEGORIES: PlaceCategoryItem[] = [
     iconBg: "#F2E4D2",
   },
   {
-    label: "Tatlı",
-    value: "dessert",
-    image: require("../../assets/images/category-icons/dessert.png"),
-    bgColor: "rgba(253, 235, 242, 0.4)",
-    borderColor: "#F6C8D7",
-    textColor: "#C45C8A",
-    iconBg: "#FADCE8",
-  },
-  {
     label: "Restoran",
     value: "restaurant",
     image: require("../../assets/images/category-icons/restaurant.png"),
     bgColor: "rgba(255, 240, 234, 0.4)",
     borderColor: "#F7C9B8",
-    textColor: "#D96C4A",
+    textColor: "#ae553a",
     iconBg: "#FCE1D6",
   },
   {
@@ -97,13 +88,92 @@ export const PLACE_CATEGORIES: PlaceCategoryItem[] = [
     iconBg: "#FCE1D6",
   },
   {
+    label: "Tatlı",
+    value: "dessert",
+    image: require("../../assets/images/category-icons/dessert.png"),
+    bgColor: "rgba(253, 235, 242, 0.4)",
+    borderColor: "#F6C8D7",
+    textColor: "#C45C8A",
+    iconBg: "#FADCE8",
+  },
+
+  
+  {
     label: "Bar",
     value: "bar",
     image: require("../../assets/images/category-icons/beer.png"),
-    bgColor: "rgba(244, 236, 248, 0.4)",
+    bgColor: "rgba(236, 245, 248, 0.4)",
     borderColor: "#DCC7EA",
     textColor: "#8A5FB5",
-    iconBg: "#EBDDFA",
+    iconBg: "#dff9fe",
+  },
+  {
+    label: "Otel",
+    value: "hotel",
+    image: require("../../assets/images/category-icons/bed.png"),
+    bgColor: "rgba(247, 241, 234, 0.4)",
+    borderColor: "#E4D6C8",
+    textColor: "#8F7458",
+    iconBg: "#EFE4D8",
+  },
+   
+    {
+    label: "Alışveriş",
+    value: "shopping",
+    image: require("../../assets/images/category-icons/shopping.png"),
+    bgColor: "rgba(255, 244, 232, 0.4)",
+    borderColor: "#F2D8B5",
+    textColor: "#C8872F",
+    iconBg: "#FBE8CF",
+  },
+  {
+    label: "Sanat",
+    value: "art",
+    image: require("../../assets/images/category-icons/art.png"),
+    bgColor: "rgba(247, 238, 251, 0.4)",
+    borderColor: "#E4CEF1",
+    textColor: "#9B68C2",
+    iconBg: "#EEDCF8",
+  },
+  {
+    label: "Spa",
+    value: "spa",
+    image: require("../../assets/images/category-icons/spa.png"),
+    bgColor: "rgba(248, 239, 248, 0.4)",
+    borderColor: "#E5D3E8",
+    textColor: "#A06AA8",
+    iconBg: "#F0E0F1",
+  },
+  {
+    label: "Sahil",
+    value: "beach",
+    image: require("../../assets/images/category-icons/vacations.png"),
+    bgColor: "rgba(234, 247, 255, 0.4)",
+    borderColor: "#BFE5F7",
+    textColor: "#4B9BC2",
+    iconBg: "#D8F0FB",
+  },
+
+  
+  {
+    label: "Doğa",
+    value: "nature",
+    image: require("../../assets/images/category-icons/nature.png"),
+    bgColor: "rgba(238, 249, 241, 0.4)",
+    borderColor: "#CBE8D2",
+    textColor: "#5A9A68",
+    iconBg: "#DDF1E3",
+  },
+
+ 
+  {
+    label: "Spor",
+    value: "spor",
+    image: require("../../assets/images/category-icons/fitness.png"),
+    bgColor: "rgba(236, 250, 243, 0.4)",
+    borderColor: "#C9EED9",
+    textColor: "#48A36D",
+    iconBg: "#DCF5E7",
   },
   {
     label: "Müze",
@@ -124,69 +194,6 @@ export const PLACE_CATEGORIES: PlaceCategoryItem[] = [
     iconBg: "#E1E7F2",
   },
   {
-    label: "Sanat",
-    value: "art",
-    image: require("../../assets/images/category-icons/art.png"),
-    bgColor: "rgba(247, 238, 251, 0.4)",
-    borderColor: "#E4CEF1",
-    textColor: "#9B68C2",
-    iconBg: "#EEDCF8",
-  },
-  {
-    label: "Alışveriş",
-    value: "shopping",
-    image: require("../../assets/images/category-icons/shopping.png"),
-    bgColor: "rgba(255, 244, 232, 0.4)",
-    borderColor: "#F2D8B5",
-    textColor: "#C8872F",
-    iconBg: "#FBE8CF",
-  },
-  {
-    label: "Sahil",
-    value: "beach",
-    image: require("../../assets/images/category-icons/vacations.png"),
-    bgColor: "rgba(234, 247, 255, 0.4)",
-    borderColor: "#BFE5F7",
-    textColor: "#4B9BC2",
-    iconBg: "#D8F0FB",
-  },
-  {
-    label: "Doğa",
-    value: "nature",
-    image: require("../../assets/images/category-icons/nature.png"),
-    bgColor: "rgba(238, 249, 241, 0.4)",
-    borderColor: "#CBE8D2",
-    textColor: "#5A9A68",
-    iconBg: "#DDF1E3",
-  },
-  {
-    label: "Otel",
-    value: "hotel",
-    image: require("../../assets/images/category-icons/bed.png"),
-    bgColor: "rgba(247, 241, 234, 0.4)",
-    borderColor: "#E4D6C8",
-    textColor: "#8F7458",
-    iconBg: "#EFE4D8",
-  },
-  {
-    label: "Spa",
-    value: "spa",
-    image: require("../../assets/images/category-icons/spa.png"),
-    bgColor: "rgba(248, 239, 248, 0.4)",
-    borderColor: "#E5D3E8",
-    textColor: "#A06AA8",
-    iconBg: "#F0E0F1",
-  },
-  {
-    label: "Fitness",
-    value: "fitness",
-    image: require("../../assets/images/category-icons/fitness.png"),
-    bgColor: "rgba(236, 250, 243, 0.4)",
-    borderColor: "#C9EED9",
-    textColor: "#48A36D",
-    iconBg: "#DCF5E7",
-  },
-  {
     label: "Çalışma Alanı",
     value: "study_place",
     image: require("../../assets/images/category-icons/study.png"),
@@ -195,4 +202,21 @@ export const PLACE_CATEGORIES: PlaceCategoryItem[] = [
     textColor: "#667A91",
     iconBg: "#E5EBF2",
   },
+];
+
+import { GroupselectedIconsJson } from "../types/group";
+
+export const GROUP_AVATAR_ICONS: {
+  key: GroupselectedIconsJson;
+  iconName: string;
+  label: string;
+}[] = [
+  { key: "planet", iconName: "planet", label: "Gezegen" },
+  { key: "people", iconName: "people", label: "Grup" },
+  { key: "heart", iconName: "heart", label: "Kalp" },
+  { key: "camera", iconName: "camera", label: "Kamera" },
+  { key: "restaurant", iconName: "restaurant", label: "Yemek" },
+  { key: "airplane", iconName: "airplane", label: "Seyahat" },
+  { key: "music", iconName: "musical-notes", label: "Müzik" },
+  { key: "paw", iconName: "paw", label: "Dostlar" },
 ];

@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -13,9 +12,12 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
+
+import { useFocusEffect } from "@react-navigation/native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 
 // YENİ: Artık sadece seçili grubu değil, tüm takvimi getiren fonksiyonu kullanıyoruz
+import { getMyNotifications } from "@/src/api/notification";
 import { getMyCalendarPlaces } from "../../api/places";
 import { getApiErrorMessage } from "../../utils/helpers";
 
@@ -62,7 +64,7 @@ const getWeatherDetails = (weatherCode: number) => {
     if (weatherCode >= 51 && weatherCode <= 67) return { icon: "rainy", color: "#3b82f6", text: "Yağmurlu" };
     if (weatherCode >= 71 && weatherCode <= 77) return { icon: "snow", color: "#0ea5e9", text: "Karlı" };
     if (weatherCode >= 95) return { icon: "thunderstorm", color: "#6366f1", text: "Fırtınalı" };
-    return { icon: "cloud-outline", color: "#64748b", text: "Bilinmiyor" };
+    return { icon: "cloud", color: "#64748b", text: "Bilinmiyor" };
 };
 
 export default function CalendarScreen({ navigation }: any) {
@@ -72,6 +74,77 @@ export default function CalendarScreen({ navigation }: any) {
     const todayStr = new Date().toISOString().split("T")[0];
     const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
+    const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+    const fetchUnreadNotificationCount = async () => {
+    try {
+        const result = await getMyNotifications();
+
+        if (result.success && Array.isArray(result.data)) {
+        const unreadCount = result.data.filter((item: any) => !item.isRead).length;
+        setUnreadNotificationCount(unreadCount);
+        }
+    } catch (error) {
+        console.log("Failed to fetch unread notifications:", error);
+    }
+    };
+
+    useFocusEffect(
+    useCallback(() => {
+        fetchUnreadNotificationCount();
+    }, [])
+    );
+    const sleep = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+    const fetchWithRetry = async (
+    url: string,
+    options: RequestInit = {},
+    retryCount = 2
+    ) => {
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= retryCount; attempt++) {
+        try {
+        const response = await fetch(url, options);
+        const contentType = response.headers.get("content-type") || "";
+        const responseText = await response.text();
+
+        if (!response.ok) {
+            const isRetryable =
+            response.status === 502 ||
+            response.status === 503 ||
+            response.status === 504;
+
+            if (isRetryable && attempt < retryCount) {
+            await sleep(700 * (attempt + 1));
+            continue;
+            }
+
+            throw new Error(
+            `Servis hatası ${response.status}: ${responseText.slice(0, 200)}`
+            );
+        }
+
+        if (!contentType.toLowerCase().includes("application/json")) {
+            throw new Error(
+            `JSON yerine farklı cevap döndü: ${responseText.slice(0, 200)}`
+            );
+        }
+
+        return JSON.parse(responseText);
+        } catch (error: any) {
+        lastError = error;
+
+        if (attempt < retryCount) {
+            await sleep(700 * (attempt + 1));
+            continue;
+        }
+        }
+    }
+
+    throw lastError;
+    };
     // Hava durumu state'leri
     const [weather, setWeather] = useState<any>(null);
     const [loadingWeather, setLoadingWeather] = useState(false);
@@ -103,45 +176,81 @@ export default function CalendarScreen({ navigation }: any) {
         );
     }, [places, selectedDate]);
 
-    useEffect(() => {
-        const fetchWeather = async () => {
-            setLoadingWeather(true);
-            setWeather(null);
+  useEffect(() => {
+  const controller = new AbortController();
 
-            try {
-                let lat = 41.0082;
-                let lng = 28.9784;
+  const fetchWeather = async () => {
+    setLoadingWeather(true);
+    setWeather(null);
 
-                if (selectedDayPlaces.length > 0) {
-                    const placeWithLocation = selectedDayPlaces.find(
-                        (p) => p.latitude && p.longitude
-                    );
-                    if (placeWithLocation) {
-                        lat = placeWithLocation.latitude!;
-                        lng = placeWithLocation.longitude!;
-                    }
-                }
+    try {
+      let lat = 41.0082;
+      let lng = 28.9784;
 
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weathercode,temperature_2m_max&timezone=auto&start_date=${selectedDate}&end_date=${selectedDate}`;
+      const placeWithLocation = selectedDayPlaces.find(
+        (p) => p.latitude != null && p.longitude != null
+      );
 
-                const response = await fetch(url);
-                const data = await response.json();
+      if (placeWithLocation) {
+        lat = Number(placeWithLocation.latitude);
+        lng = Number(placeWithLocation.longitude);
+      }
 
-                if (data && data.daily && data.daily.temperature_2m_max) {
-                    const temp = Math.round(data.daily.temperature_2m_max[0]);
-                    const code = data.daily.weathercode[0];
-                    setWeather({ temp, ...getWeatherDetails(code) });
-                }
-            } catch (error) {
-                console.log("Hava durumu çekilemedi:", error);
-            } finally {
-                setLoadingWeather(false);
-            }
-        };
+      const todayStr = new Date().toISOString().split("T")[0];
+      const diffMs =
+        new Date(todayStr).getTime() - new Date(selectedDate).getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-        fetchWeather();
-    }, [selectedDate, places]);
+      const isPast = selectedDate < todayStr;
+      const useForecastForRecentPast = isPast && diffDays <= 92;
+      const baseUrl =
+        !isPast || useForecastForRecentPast
+          ? "https://api.open-meteo.com/v1/forecast"
+          : "https://archive-api.open-meteo.com/v1/archive";
 
+      const url =
+        `${baseUrl}?latitude=${encodeURIComponent(lat)}` +
+        `&longitude=${encodeURIComponent(lng)}` +
+        `&daily=weather_code,temperature_2m_max` +
+        `&timezone=auto` +
+        `&start_date=${encodeURIComponent(selectedDate)}` +
+        `&end_date=${encodeURIComponent(selectedDate)}`;
+
+      const data = await fetchWithRetry(
+        url,
+        {
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        },
+        2
+      );
+
+      const temp = data?.daily?.temperature_2m_max?.[0];
+      const code =
+        data?.daily?.weather_code?.[0] ?? data?.daily?.weathercode?.[0];
+
+      if (temp == null || code == null) {
+        throw new Error("Beklenen hava durumu alanları gelmedi.");
+      }
+
+      setWeather({
+        temp: Math.round(temp),
+        ...getWeatherDetails(code),
+      });
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
+
+      console.log("Hava durumu çekilemedi:", error);
+      setWeather(null);
+    } finally {
+      setLoadingWeather(false);
+    }
+  };
+
+  fetchWeather();
+
+  return () => controller.abort();
+}, [selectedDate, selectedDayPlaces]);
     const formattedSelectedDate = new Date(selectedDate).toLocaleDateString(
         "tr-TR",
         { day: "numeric", month: "long", weekday: "long" }
@@ -178,6 +287,52 @@ export default function CalendarScreen({ navigation }: any) {
                                     Takvimim
                                 </Text>
                             </View>
+                            <TouchableOpacity
+                                activeOpacity={0.85}
+                                onPress={() => navigation.navigate("Notifications")}
+                                style={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 14,
+                                    backgroundColor: "rgba(217, 234, 204, 0.68)",
+                                    borderWidth: 1,
+                                    borderColor: "#dbe4ec",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    position: "relative"
+                                }}
+                                >
+                                <Ionicons name="notifications-sharp" size={22} color="#234f78" />
+
+                                {unreadNotificationCount > 0 && (
+                                    <View
+                                    style={{
+                                        position: "absolute",
+                                        top: -4,
+                                        right: -4,
+                                        minWidth: 20,
+                                        height: 20,
+                                        paddingHorizontal: 5,
+                                        borderRadius: 10,
+                                        backgroundColor: "#ff6b81",
+                                        borderWidth: 2,
+                                        borderColor: "#ffffff",
+                                        alignItems: "center",
+                                        justifyContent: "center"
+                                    }}
+                                    >
+                                    <Text
+                                        style={{
+                                        color: "#ffffff",
+                                        fontSize: 10,
+                                        fontWeight: "800"
+                                        }}
+                                    >
+                                        {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                                    </Text>
+                                    </View>
+                                )}
+                                </TouchableOpacity>
                         </View>
 
                         {loading ? (
@@ -263,8 +418,8 @@ export default function CalendarScreen({ navigation }: any) {
                                                             {isVisited ? (
                                                                 <View
                                                                     style={{
-                                                                        width: 34,
-                                                                        height: 34,
+                                                                        width: 31,
+                                                                        height: 31,
                                                                         borderRadius: 10,
                                                                         backgroundColor: groupColor,
                                                                         alignItems: "center",
@@ -292,7 +447,7 @@ export default function CalendarScreen({ navigation }: any) {
                                                                 >
                                                                     <Ionicons
                                                                         name="heart"
-                                                                        size={38}
+                                                                        size={37}
                                                                         color={groupColor}
                                                                         style={{ position: "absolute" }}
                                                                     />
@@ -368,7 +523,7 @@ export default function CalendarScreen({ navigation }: any) {
                                                 color="#ff5656"
                                             />
                                             <Text style={styles.legendText}>
-                                                Wish Day (Planlar)
+                                                Planlar
                                             </Text>
                                         </View>
                                     </View>
@@ -407,7 +562,7 @@ export default function CalendarScreen({ navigation }: any) {
                                                 style={{ marginBottom: 10 }}
                                             />
                                             <Text style={styles.emptyText}>
-                                                Bu tarihte henüz bir planınız veya anınız yok.
+                                                Henüz bugüne bir planınız veya anınız yok.
                                             </Text>
                                         </View>
                                     ) : (
@@ -446,7 +601,7 @@ export default function CalendarScreen({ navigation }: any) {
                                                                 name={
                                                                     isVisited
                                                                         ? "checkmark-done"
-                                                                        : "star"
+                                                                        : "heart"
                                                                 }
                                                                 size={24}
                                                                 color={groupColor}
@@ -624,7 +779,7 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         color: "#64748b",
-        fontSize: 15,
+        fontSize: 14,
         textAlign: "center",
         fontWeight: "500"
     },
