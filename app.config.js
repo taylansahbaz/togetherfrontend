@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "lets-together",
     slug: "lets-together",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/applogo.png",
     scheme: "lets-together",
@@ -13,7 +13,7 @@ export default {
 
     ios: {
       supportsTablet: true,
-      buildNumber: "1.0.0",
+      buildNumber: "1.0.1",
       bundleIdentifier: "com.taylansahbaz.letstogether",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -22,7 +22,7 @@ export default {
 
     android: {
       package: "com.taylansahbaz.letstogether",
-      versionCode: 1,
+      versionCode: 2,
       config: {
         googleMaps: {
           apiKey: "AIzaSyCk0XzUBX1U2R7neSR2sJ0TI1TdjcOdx8U",
