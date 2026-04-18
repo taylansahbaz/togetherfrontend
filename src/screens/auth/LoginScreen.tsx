@@ -1,16 +1,16 @@
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    Text,
-    useWindowDimensions,
-    View
+  Alert,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  useWindowDimensions,
+  View
 } from "react-native";
 import { resendVerification } from "../../api/auth";
 import AppButton from "../../components/common/AppButton";
@@ -133,8 +133,8 @@ export default function LoginScreen({ navigation }: any) {
                   <Image
                     source={require("../../../assets/images/logoyazisiz.png")}
                     style={{
-                      width: 280,
-                      height: 280,
+                      width: 300,
+                      height: 300,
                       resizeMode: "contain",
                       marginTop: -92,
                       marginBottom: 10,
@@ -152,8 +152,7 @@ export default function LoginScreen({ navigation }: any) {
                       textAlign: "center",
                       textTransform: "uppercase",
                     }}
-                  >
-                    Paylaşılan Anılarına Devam Et
+                  > Continue to Your Shared Memories
                   </Text>
 
                   <ErrorMessage message={error} />
