@@ -2,16 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
-  Image,
-  ImageBackground,
-  Pressable,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    ImageBackground,
+    Pressable,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import { PLACE_CATEGORIES } from "@/src/utils/constants";
@@ -466,7 +466,7 @@ export default function WishlistScreen({ navigation }: any) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{
                 paddingHorizontal: 20,
-                paddingTop: 14,
+                paddingTop: 10,
                 paddingBottom: 130,
               }}
               refreshControl={
@@ -544,7 +544,7 @@ export default function WishlistScreen({ navigation }: any) {
                     >
                       {selectedGroup?.name
                         ? "Gitmek istediginiz yerleri görebilirsiniz."
-                        : "Your saved places for the next sweet memories together."}
+                        : "Sonraki güzel anılar için kaydedilmiş yerleriniz."}
                     </Text>
                   </View>
 

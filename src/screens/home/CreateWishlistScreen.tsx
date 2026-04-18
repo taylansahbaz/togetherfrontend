@@ -180,9 +180,9 @@ const FormField = ({
       borderRadius: 18,
       borderWidth: 1,
       borderColor: colors.inputBorder,
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       paddingVertical: multiline ? 14 : 8,
-      marginBottom: 14,
+      marginBottom: 10,
     }}
   >
     <View
@@ -264,7 +264,7 @@ const DatePickerField = ({
           fontWeight: "700",
         }}
       >
-        Planned Date
+        Planladığın Tarih
       </Text>
       <Text
         style={{
@@ -605,12 +605,16 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
         });
       } else {
         if (!selectedGroupId) {
-          showAlert({
-            title: "Hata",
-            message: "Lütfen bir grup seçin.",
-            type: "danger",
-          });
           setIsSaving(false);
+          showAlert({
+              title: "Grup Seçilmedi",
+              message: "Lütfen bir grup seçin.",
+              type: "info",
+              confirmText: "Tamam",
+              onConfirm: () => {
+                navigation.navigate("GroupListScreen"); 
+              }
+            });
           return;
         }
 
@@ -750,7 +754,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                           lineHeight: 32,
                         }}
                       >
-                        {editPlaceId ? "Edit Wish Day" : "Plan a Wish Day"}
+                        {editPlaceId ? "Wish Day Düzenle" : "Wish Day Planla"}
                       </Text>
                     </View>
                   </View>
@@ -789,7 +793,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                       </View>
 
                       <TextInput
-                        placeholder="Search a cafe, restaurant, park..."
+                        placeholder="Gitmek istediğin yeri yaz, biz bulalım..."
                         placeholderTextColor="#8E9AA5"
                         value={searchQuery}
                         onChangeText={handleSearchChange}
@@ -940,7 +944,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
 
                   <FormField
                     icon="document-text-outline"
-                    placeholder="Write a soft note, plan or expectation..."
+                    placeholder="Eklemek istediğin bir not..."
                     value={description}
                     onChangeText={setDescription}
                     multiline={true}
@@ -986,7 +990,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                             fontWeight: "900",
                           }}
                         >
-                          {editPlaceId ? "Save Changes" : "Create My Wish Day"}
+                          {editPlaceId ? "Değişiklikleri Kaydet" : "Wish Day Oluştur"}
                         </Text>
                       </>
                     )}
@@ -1035,7 +1039,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                               fontWeight: "700",
                             }}
                           >
-                            Cancel
+                            İptal
                           </Text>
                         </TouchableOpacity>
 
@@ -1046,7 +1050,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                             fontWeight: "800",
                           }}
                         >
-                          Select Date
+                          Tarih Seçin
                         </Text>
 
                         <TouchableOpacity
@@ -1059,7 +1063,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                               fontWeight: "700",
                             }}
                           >
-                            Done
+                            Tamam
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -1069,6 +1073,12 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                         mode="date"
                         display="spinner"
                         onChange={handleDateChange}
+                        themeVariant="light"
+                        textColor="#1F2937"
+                        style={{
+                          backgroundColor: "#fff",
+                          height: 180,
+                        }}
                       />
                     </View>
                   </View>

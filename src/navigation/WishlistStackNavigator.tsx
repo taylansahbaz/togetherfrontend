@@ -17,7 +17,7 @@ export default function WishlistStackNavigator() {
 
             <Stack.Screen name="CreateWishlist" component={CreateWishlistScreen} options={{ headerShown: false }} />
             
-            <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{ title: "Place Detail" }} />
+            <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{  headerShown: false }} />
         </Stack.Navigator>
     );
 }

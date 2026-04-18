@@ -31,8 +31,7 @@ import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { PLACE_CATEGORIES } from "../../utils/constants";
 import { getApiErrorMessage } from "../../utils/helpers";
 import {
-  getPlaceCategoryLabel,
-  mapGoogleTypeToCategoryValue,
+  getPlaceCategoryLabel, mapGoogleTypeToCategoryValue
 } from "../../utils/placeCategories";
 const sectionIconColors = {
   search: {
@@ -451,6 +450,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
   const editPlaceId = route.params?.editPlaceId;
   const placeData = route.params?.placeData;
   const initialStatus = route.params?.initialStatus || 1;
+  const defaultDate = route.params?.defaultDate || "";
 
   const isVisitedPlace = editPlaceId
     ? placeData?.status === 2 || !!placeData?.visitDate
@@ -458,7 +458,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
 
   const formattedInitialDate = placeData?.visitDate
     ? new Date(placeData.visitDate).toISOString().split("T")[0]
-    : "";
+    : defaultDate;
 
   const [title, setTitle] = useState(placeData?.title || "");
   const [category, setCategory] = useState(placeData?.category || "");
@@ -786,10 +786,16 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
         await updatePlace(editPlaceId, payload);
       } else {
         if (!selectedGroupId) {
+
+          setIsSaving(false); 
           showCustomAlert({
             title: "Grup Seçilmedi",
             message: "Lütfen bir grup seçin.",
             type: "info",
+            confirmText: "Tamam",
+            onConfirmAction: () => {
+              navigation.navigate("GroupListScreen"); 
+            }
           });
           return;
         }
@@ -1068,7 +1074,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                                 fontWeight: visitDate ? "800" : "500",
                             }}
                             >
-                            {visitDate || "Tarih seç"}
+                            {visitDate || ""}
                             </Text>
 
                             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -1453,7 +1459,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                             fontWeight: "900",
                           }}
                         >
-                          {editPlaceId ? "Save Changes" : "Create Memory"}
+                          {editPlaceId ? "Değişiklikleri Kaydet" : "Anı Oluştur"}
                         </Text>
                       </>
                     )}
@@ -1502,7 +1508,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                               fontWeight: "700",
                             }}
                           >
-                            Cancel
+                            İptal
                           </Text>
                         </TouchableOpacity>
 
@@ -1513,7 +1519,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                             fontWeight: "800",
                           }}
                         >
-                          Select Date
+                          Tarih Seçin
                         </Text>
 
                         <TouchableOpacity
@@ -1526,7 +1532,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                               fontWeight: "700",
                             }}
                           >
-                            Done
+                            Tamam
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -1536,6 +1542,12 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                         mode="date"
                         display="spinner"
                         onChange={handleDateChange}
+                        themeVariant="light"
+                        textColor="#1F2937"
+                        style={{
+                          backgroundColor: "#fff",
+                          height: 180,
+                        }}
                       />
                     </View>
                   </View>

@@ -4,6 +4,7 @@ import React from "react";
 // 1. Kütüphaneyi buraya ekledik
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Platform } from "react-native";
 import CalendarScreen from '../screens/home/CalendarScreen';
 import MapScreen from "../screens/map/MapScreen";
 import HomeStackNavigator from "./HomeStackNavigator";
@@ -39,25 +40,18 @@ export default function MainTabNavigator() {
                     return <Ionicons name={iconName as any} size={25} color={color} style={{ marginBottom: 4 }} />;                },
 
                 // RENK VE STİL AYARLARI
-                tabBarActiveTintColor: "#2F7E8D",
-                tabBarInactiveTintColor: "#8aa0b2",
+                tabBarActiveTintColor: "#ffffff",
+                tabBarInactiveTintColor: "#d6cfcf",
                 tabBarStyle: {
-                    backgroundColor: "#ffffff",
-                    borderTopWidth: 0,
-                    
-                    // 3. İŞTE SİHİRLİ KISIM BURASI:
-                    // Temel yüksekliğimiz 55, üzerine telefonun sanal tuş yüksekliğini (insets.bottom) ekliyoruz.
-                    height: 55 + insets.bottom, 
-                    // Alt boşluğu da sadece sanal tuş varsa veriyoruz, yoksa (eski telefonlarda) 5px veriyoruz.
-                    paddingBottom: insets.bottom > 0 ? insets.bottom : 5, 
-                    
-                    paddingTop: 5, 
-                    paddingHorizontal: 8,
-                    elevation: 0,
-                    shadowColor: "#000",
+                    backgroundColor: '#001223da', 
+                    borderTopWidth: 0, // Üstteki o ince gri çizgiyi siler, çok daha şık durur
+                    elevation: 15, // Android için yukarı doğru hafif gölge
+                    shadowColor: '#000', // iOS için gölge ayarları
                     shadowOffset: { width: 0, height: -4 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 10,
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    height: Platform.OS === 'ios' ? 85 : 65, 
+                    paddingBottom: Platform.OS === 'ios' ? insets.bottom + 10 : 10, // iOS'ta güvenli alan boşluğu + ekstra 10, Android'de sadece 10
                 },
                 tabBarLabelStyle: {
                     fontSize: 12,
@@ -68,7 +62,7 @@ export default function MainTabNavigator() {
         >
             <Tab.Screen name="CalendarTab" component={CalendarScreen} options={{ tabBarLabel: 'Takvim' }} />
             <Tab.Screen name="MapTab" component={MapScreen} options={{ title: "Harita" }} />
-            <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Ana Sayfa" }} />
+            <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Geçmiş" }} />
             <Tab.Screen name="WishlistTab" component={WishlistStackNavigator} options={{ title: "Planlar" }} />
             <Tab.Screen 
                 name="ProfileTab" 

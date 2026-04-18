@@ -16,9 +16,9 @@ export default function ReviewCard({ review }: { review: Review }) {
             }}
         >
             <Text style={{ fontWeight: "700" }}>{review.userName}</Text>
-            <Text style={{ marginTop: 4 }}>Rating: {review.rating}/10</Text>
+            <Text style={{ marginTop: 4 }}>Puan: {review.rating}/10</Text>
             <Text style={{ marginTop: 4 }}>
-                Would Go Again: {review.wouldGoAgain ? "Yes" : "No"}
+                Tekrar Gider misiniz: {review.wouldGoAgain ? "Evet" : "Hayır"}
             </Text>
             {!!review.comment && <Text style={{ marginTop: 8 }}>{review.comment}</Text>}
             <Text style={{ marginTop: 8, color: "#64748b" }}>

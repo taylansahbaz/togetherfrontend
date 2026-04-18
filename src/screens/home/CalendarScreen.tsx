@@ -19,13 +19,14 @@ import { Calendar, LocaleConfig } from "react-native-calendars";
 // YENİ: Artık sadece seçili grubu değil, tüm takvimi getiren fonksiyonu kullanıyoruz
 import { getMyNotifications } from "@/src/api/notification";
 import { getMyCalendarPlaces } from "../../api/places";
+import { useAuth } from "../../hooks/useAuth";
 import { getApiErrorMessage } from "../../utils/helpers";
 
 LocaleConfig.locales["tr"] = {
     monthNames: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
     monthNamesShort: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
-    dayNames: ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"],
-    dayNamesShort: ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"],
+    dayNames: [ "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi","Pazar"],
+    dayNamesShort: [ "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt" ,"Paz"],
     today: "Bugün"
 };
 LocaleConfig.defaultLocale = "tr";
@@ -68,6 +69,7 @@ const getWeatherDetails = (weatherCode: number) => {
 };
 
 export default function CalendarScreen({ navigation }: any) {
+    const { logout } = useAuth();
     const [places, setPlaces] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -84,8 +86,15 @@ export default function CalendarScreen({ navigation }: any) {
         const unreadCount = result.data.filter((item: any) => !item.isRead).length;
         setUnreadNotificationCount(unreadCount);
         }
-    } catch (error) {
-        console.log("Failed to fetch unread notifications:", error);
+    } catch (error: any) {
+        const errorMsg = error?.message || String(error);
+        console.log("Failed to fetch unread notifications:", errorMsg);
+        
+        // Refresh token hatası ise logout yap
+        if (errorMsg.includes("Refresh token not found") || errorMsg.includes("must re-authenticate")) {
+            console.log("Refresh token expired, logging out...");
+            await logout();
+        }
     }
     };
 
@@ -271,8 +280,8 @@ export default function CalendarScreen({ navigation }: any) {
                                 justifyContent: "space-between",
                                 alignItems: "center",
                                 paddingHorizontal: 24,
-                                paddingTop: 20,
-                                paddingBottom: 10
+                                paddingTop: 10,
+                                paddingBottom: 2
                             }}
                         >
                             <View>
@@ -562,7 +571,7 @@ export default function CalendarScreen({ navigation }: any) {
                                                 style={{ marginBottom: 10 }}
                                             />
                                             <Text style={styles.emptyText}>
-                                                Henüz bugüne bir planınız veya anınız yok.
+                                                Henüz bir planınız veya anınız yok.
                                             </Text>
                                         </View>
                                     ) : (
@@ -626,6 +635,8 @@ export default function CalendarScreen({ navigation }: any) {
                                                                     ? `${place.city} • `
                                                                     : ""}
                                                                 {place.category}
+                                                                  {place.groupName ? ` • ${place.groupName}` : ""}
+
                                                             </Text>
                                                         </View>
 

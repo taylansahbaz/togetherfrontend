@@ -1,3 +1,4 @@
+import { getMyGroups } from "@/src/api/groups";
 import { getApiErrorMessage } from "@/src/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -10,6 +11,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActionSheetIOS,
   Alert,
   Dimensions,
   Image,
@@ -28,6 +30,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { getMapPlaces } from "../../api/maps";
 import { getPlaceDetail } from "../../api/places";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 
 const { width, height } = Dimensions.get("window");
@@ -57,6 +60,8 @@ type PlaceItem = {
   title?: string;
   city?: string;
   category?: string;
+  City?: string;
+  Category?: string;
   latitude: number;
   longitude: number;
   status?: number | string;
@@ -125,7 +130,8 @@ const MarkerItem = memo(function MarkerItem({
 });
 
 export default function MapScreen({ route, navigation }: any) {
-  const { selectedGroupId } = useSelectedGroup();
+  const { user } = useAuth();
+  const { selectedGroupId, initializeSelectedGroup } = useSelectedGroup();
   const mapRef = useRef<MapView>(null);
   const targetPlaceId = route.params?.targetPlaceId;
   const ignoreNextMapPressRef = useRef(false);
@@ -285,7 +291,7 @@ export default function MapScreen({ route, navigation }: any) {
       setLoading(true);
 
       const placesArray = await getMapPlaces(selectedGroupId);
-
+      console.log("map places raw:", JSON.stringify(placesArray, null, 2));
       if (Array.isArray(placesArray)) {
         const validPlaces = placesArray.filter(
           (p: any) =>
@@ -338,6 +344,26 @@ export default function MapScreen({ route, navigation }: any) {
     }, [loadMapData])
   );
 
+  // Initialize groups when user changes (after login)
+  useEffect(() => {
+    const initializeGroups = async () => {
+      if (!user?.id) return;
+
+      try {
+        const response = await getMyGroups();
+        const { groups, lastSelectedGroupId: backendLastSelectedGroupId } = response.data;
+        
+        // Use user's lastSelectedGroupId from auth, fallback to backend value
+        const groupIdToSelect = user.lastSelectedGroupId ?? backendLastSelectedGroupId;
+        await initializeSelectedGroup(groups, groupIdToSelect);
+      } catch (error) {
+        console.log("Failed to initialize groups:", error);
+      }
+    };
+
+    initializeGroups();
+  }, [user?.id]);
+
   const filteredPlaces = useMemo(() => {
     let result = [...allPlaces];
 
@@ -384,17 +410,75 @@ export default function MapScreen({ route, navigation }: any) {
     }
 
     try {
-      const googleMapsUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
-      const canOpenGoogleMaps = await Linking.canOpenURL(googleMapsUrl);
+      if (Platform.OS === "ios") {
+        const options: { label: string; url: string }[] = [];
 
-      if (canOpenGoogleMaps) {
-        await Linking.openURL(googleMapsUrl);
+        const appleMapsUrl = `http://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+        const googleMapsUrl = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+        const wazeUrl = `waze://?ll=${lat},${lng}&navigate=yes`;
+        const googleMapsWebUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+        if (await Linking.canOpenURL(appleMapsUrl)) {
+          options.push({ label: "Apple Maps", url: appleMapsUrl });
+        }
+
+        if (await Linking.canOpenURL(googleMapsUrl)) {
+          options.push({ label: "Google Maps", url: googleMapsUrl });
+        }
+
+        if (await Linking.canOpenURL(wazeUrl)) {
+          options.push({ label: "Waze", url: wazeUrl });
+        }
+
+        if (await Linking.canOpenURL(googleMapsWebUrl)) {
+          options.push({ label: "Google Maps (Web)", url: googleMapsWebUrl });
+        }
+
+        if (!options.length) {
+          Alert.alert("Hata", "Kullanılabilir harita uygulaması bulunamadı.");
+          return;
+        }
+
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [...options.map((x) => x.label), "İptal"],
+            cancelButtonIndex: options.length,
+            title: "Yol tarifi için uygulama seç",
+          },
+          async (selectedIndex) => {
+            if (selectedIndex === options.length) return;
+
+            const selected = options[selectedIndex];
+            if (!selected) return;
+
+            try {
+              await Linking.openURL(selected.url);
+            } catch (error) {
+              console.log("selected map open error:", error);
+              Alert.alert("Hata", "Seçilen harita uygulaması açılamadı.");
+            }
+          }
+        );
+
         return;
       }
 
-      const universalUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-      await Linking.openURL(universalUrl);
-    } catch {
+      const googleNavigationUrl = `google.navigation:q=${lat},${lng}`;
+      const googleWebUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+      if (await Linking.canOpenURL(googleNavigationUrl)) {
+        await Linking.openURL(googleNavigationUrl);
+        return;
+      }
+
+      if (await Linking.canOpenURL(googleWebUrl)) {
+        await Linking.openURL(googleWebUrl);
+        return;
+      }
+
+      Alert.alert("Hata", "Harita uygulaması açılamadı.");
+    } catch (error) {
+      console.log("openDirections error:", error);
       Alert.alert("Hata", "Harita uygulaması açılamadı.");
     }
   };
@@ -453,7 +537,7 @@ export default function MapScreen({ route, navigation }: any) {
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={INITIAL_REGION}
         showsUserLocation
         showsMyLocationButton={false}
@@ -576,13 +660,12 @@ export default function MapScreen({ route, navigation }: any) {
                     {getStatusLabel(selectedPlace)}
                   </Text>
                 </View>
-
+                
                 <Text style={styles.bottomCardTitle} numberOfLines={1}>
                   {selectedPlace.title || "Mekan"}
                 </Text>
 
                 <Text style={styles.bottomCardSubtitle} numberOfLines={1}>
-                  {selectedPlace.category || selectedPlace.city || "Konum bilgisi"}
                 </Text>
               </View>
 

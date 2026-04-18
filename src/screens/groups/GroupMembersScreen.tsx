@@ -1,4 +1,4 @@
-import { GroupselectedIconsJson } from "@/src/types/group";
+import { GroupRole, GroupselectedIconsJson } from "@/src/types/group";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -21,12 +21,14 @@ import {
     cancelGroupInvitation,
     getGroupMembers,
     getPendingGroupInvitations,
-    inviteGroupMember,
+    inviteGroupMember, // Eklenen API metodu
+    leaveGroup,
     removeGroupMember,
     updateGroup,
     uploadGroupAvatar, // Eklenen API metodu
 } from "../../api/groups";
 import CustomAlert from "../../components/common/CustomAlert";
+import { useAuth } from "../../hooks/useAuth";
 import { getApiErrorMessage } from "../../utils/helpers";
 
 const GROUP_COLORS = [
@@ -66,6 +68,7 @@ type Member = {
   userId: string;
   name: string;
   email: string;
+  role?: GroupRole;
 };
 
 type PendingInvitation = {
@@ -93,6 +96,7 @@ type AlertState = {
 export default function GroupMembersScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const { user } = useAuth();
   
   // Listeden gelen mevcut veriler (Grup Listesi sayfasından bunları passladığını varsayıyoruz)
   const { 
@@ -107,6 +111,7 @@ export default function GroupMembersScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLeavingGroup, setIsLeavingGroup] = useState(false);
 
   // Güncelleme Form State'leri
   const [editName, setEditName] = useState(groupName);
@@ -134,6 +139,16 @@ export default function GroupMembersScreen() {
   const selectedIconName = useMemo(() => {
     return GROUP_ICONS.find((item) => item.key === iconKey)?.iconName ?? "planet";
   }, [iconKey]);
+
+  // Current user'ın role'ünü belirle
+  const currentUserRole = useMemo(() => {
+    if (!user?.id) return null;
+    const currentMember = members.find(m => m.userId === user.id);
+    return currentMember?.role as GroupRole | undefined;
+  }, [user?.id, members]);
+
+  const isCurrentUserOwner = currentUserRole === "Owner";
+  const isCurrentUserMember = currentUserRole === "Member";
 
   const hideAlert = () => setAlertState((prev) => ({ ...prev, visible: false }));
 
@@ -311,6 +326,32 @@ export default function GroupMembersScreen() {
     });
   };
 
+  const handleLeaveGroup = () => {
+    showAlert({
+      title: "Gruptan Çık",
+      message: "Bu gruptan ayrılmak istediğine emin misin? Gruba tekrar katılmak için davet almanız gerekecek.",
+      type: "danger",
+      confirmText: "Çık",
+      cancelText: "Vazgeç",
+      showCancelButton: true,
+      onConfirm: async () => {
+        try {
+          setIsLeavingGroup(true);
+          await leaveGroup(groupId);
+          showAlert({ 
+            title: "Başarılı", 
+            message: "Gruptan başarıyla çıktınız.",
+            type: "success",
+            onConfirm: () => navigation.goBack()
+          });
+        } catch (error) {
+          setIsLeavingGroup(false);
+          showAlert({ title: "Hata", message: getApiErrorMessage(error), type: "danger" });
+        }
+      },
+    });
+  };
+
   const renderPendingInvitations = () => {
     if (!pendingInvitations.length) {
       return (
@@ -346,22 +387,32 @@ export default function GroupMembersScreen() {
     );
   };
 
-  const renderMemberItem = ({ item }: { item: Member }) => (
-    <View style={styles.memberCard}>
-      <View style={[styles.memberAvatar, { backgroundColor: `${colorCode}20` }]}>
-        <Text style={[styles.memberAvatarText, { color: colorCode }]}>
-          {item.name?.charAt(0)?.toUpperCase() || "?"}
-        </Text>
+  const renderMemberItem = ({ item }: { item: Member }) => {
+    const isCurrentUser = item.userId === user?.id;
+    const showRemoveButton = isCurrentUserOwner && !isCurrentUser;
+
+    return (
+      <View style={styles.memberCard}>
+        <View style={[styles.memberAvatar, { backgroundColor: `${colorCode}20` }]}>
+          <Text style={[styles.memberAvatarText, { color: colorCode }]}>
+            {item.name?.charAt(0)?.toUpperCase() || "?"}
+          </Text>
+        </View>
+        <View style={styles.memberInfo}>
+          <View style={styles.memberNameRow}>
+            <Text style={styles.memberName}>{item.name}</Text>
+            {isCurrentUser && <View style={styles.youBadge}><Text style={styles.youBadgeText}>Sen</Text></View>}
+          </View>
+          <Text style={styles.memberEmail}>{item.email}</Text>
+        </View>
+        {showRemoveButton && (
+          <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveMember(item.userId, item.name)}>
+            <Ionicons name="trash-outline" size={20} color="#ef4444" />
+          </TouchableOpacity>
+        )}
       </View>
-      <View style={styles.memberInfo}>
-        <Text style={styles.memberName}>{item.name}</Text>
-        <Text style={styles.memberEmail}>{item.email}</Text>
-      </View>
-      <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveMember(item.userId, item.name)}>
-        <Ionicons name="trash-outline" size={20} color="#ef4444" />
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   // FlatList Header: Ayarlar ve Davet Formları
   const headerContent = useMemo(() => (
@@ -484,6 +535,27 @@ export default function GroupMembersScreen() {
         {renderPendingInvitations()}
       </View>
 
+      {/* KART 4: GRUPTAN ÇIK (Sadece Member ise göster) */}
+      {isCurrentUserMember && (
+        <View style={styles.card}>
+          <Text style={styles.cardHeaderTitle}>Grup Ayarları</Text>
+          <TouchableOpacity
+            style={styles.leaveButton}
+            onPress={handleLeaveGroup}
+            disabled={isLeavingGroup}
+          >
+            {isLeavingGroup ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Ionicons name="exit-outline" size={20} color="white" style={styles.leaveButtonIcon} />
+                <Text style={styles.leaveButtonText}>Gruptan Çık</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Üyeler Listesi Başlığı */}
       <View style={styles.membersSectionHeader}>
         <Text style={styles.cardHeaderTitle}>Mevcut Üyeler</Text>
@@ -493,7 +565,7 @@ export default function GroupMembersScreen() {
       </View>
     </View>
   ), [
-    editName, colorCode, isUpdating, emailInput, isInviting, pendingInvitations, members.length, photoUrl, iconKey, selectedIconName
+    editName, colorCode, isUpdating, emailInput, isInviting, pendingInvitations, members.length, photoUrl, iconKey, selectedIconName, isCurrentUserMember, isCurrentUserOwner, isLeavingGroup
   ]);
 
   if (loading) {
@@ -911,10 +983,26 @@ const styles = StyleSheet.create({
   memberInfo: {
     flex: 1,
   },
+  memberNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   memberName: {
     fontSize: 15,
     fontWeight: "700",
     color: "#102a43",
+  },
+  youBadge: {
+    backgroundColor: "#dbeafe",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  youBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0284c7",
   },
   memberEmail: {
     fontSize: 13,
@@ -928,6 +1016,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#fef2f2",
     justifyContent: "center",
     alignItems: "center",
+  },
+  leaveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ef4444",
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginTop: 8,
+  },
+  leaveButtonIcon: {
+    marginRight: 8,
+  },
+  leaveButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "white",
   },
   emptyText: {
     textAlign: "center",

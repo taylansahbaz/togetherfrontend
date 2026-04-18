@@ -6,15 +6,17 @@ function mapAuthUser(data: AuthResponse): User {
     id: data.userId,
     name: data.name,
     email: data.email,
+    lastSelectedGroupId: data.lastSelectedGroupId || null,
   };
 }
 
-export async function login(payload: LoginRequest): Promise<{ token: string; user: User }> {
+export async function login(payload: LoginRequest): Promise<{ token: string; refreshToken: string; user: User }> {
   const response = await api.post("/auth/login", payload);
   const data: AuthResponse = response.data.data ?? response.data;
 
   return {
     token: data.accessToken,
+    refreshToken: data.refreshToken,
     user: mapAuthUser(data),
   };
 }
@@ -29,12 +31,13 @@ export async function register(payload: RegisterRequest): Promise<{ token: strin
   };
 }
 
-export async function googleLogin(idToken: string): Promise<{ token: string; user: User }> {
+export async function googleLogin(idToken: string): Promise<{ token: string; refreshToken: string; user: User }> {
   const response = await api.post("/auth/google-login", { idToken });
   const data: AuthResponse = response.data.data ?? response.data;
 
   return {
     token: data.accessToken,
+    refreshToken: data.refreshToken,
     user: mapAuthUser(data),
   };
 }
@@ -42,12 +45,19 @@ export async function googleLogin(idToken: string): Promise<{ token: string; use
 export async function appleLogin(payload: {
   idToken: string;
   fullName?: string | null;
-}): Promise<{ token: string; user: User }> {
+  authorizationCode?: string;
+}): Promise<{ token: string; refreshToken: string; user: User }> {
+  console.log("Sending Apple login payload to backend:", {
+    hasIdToken: !!payload.idToken,
+    hasAuthCode: !!payload.authorizationCode,
+    fullName: payload.fullName,
+  });
   const response = await api.post("/auth/apple-login", payload);
   const data: AuthResponse = response.data.data ?? response.data;
 
   return {
     token: data.accessToken,
+    refreshToken: data.refreshToken,
     user: mapAuthUser(data),
   };
 }
@@ -106,3 +116,13 @@ export const resetPassword = async (
 
   return response.data;
 }
+export const refreshAccessToken = async (refreshToken: string): Promise<{ token: string; refreshToken: string; user: User }> => {
+  const response = await api.post("/auth/refresh", { refreshToken });
+  const data: AuthResponse = response.data.data ?? response.data;
+
+  return {
+    token: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: mapAuthUser(data),
+  };
+};

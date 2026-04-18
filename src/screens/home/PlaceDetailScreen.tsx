@@ -269,7 +269,7 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                     ) : (
                         <View style={styles.noCoverPlaceholder}>
                             <Ionicons name="image-outline" size={48} color="rgba(255,255,255,0.4)" />
-                            <Text style={styles.noCoverText}>No photo yet</Text>
+                            <Text style={styles.noCoverText}>Henüz Fotoğraf Eklenmemiş</Text>
                         </View>
                     )}
                     <TouchableOpacity style={styles.optionsButton} onPress={() => setIsActionSheetVisible(true)}>
@@ -319,12 +319,12 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                     <View style={styles.quickActionsRow}>
                         <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate("UploadPhoto", { placeId })}>
                             <View style={[styles.actionIconBox, { backgroundColor: "#e0f2fe" }]}><Ionicons name="camera" size={20} color="#0284c7" /></View>
-                            <Text style={styles.actionBtnText} numberOfLines={1}>Add Photo</Text>
+                            <Text style={styles.actionBtnText} numberOfLines={1}> Fotoğraf Ekle</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate("EditReview", { placeId, review: currentUserReview ?? null })}>
                             <View style={[styles.actionIconBox, { backgroundColor: "#fef3c7" }]}><Ionicons name="star" size={20} color="#d97706" /></View>
-                            <Text style={styles.actionBtnText} numberOfLines={1}>{currentUserReview ? "Edit Review" : "Add Review"}</Text>
+                            <Text style={styles.actionBtnText} numberOfLines={1}>{currentUserReview ? "Yorumu Düzenle" : "Yorum Ekle"}</Text>
                         </TouchableOpacity>
 
                         {status === "Wishlist" && (
@@ -336,13 +336,13 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             </TouchableOpacity>
                         )}
                     </View>
-{/* YENİ: BİRLEŞTİRİLMİŞ (UNIFIED) DEĞERLENDİRME KARTI */}
+
                     <View style={styles.unifiedReviewCard}>
                         
                         {/* Üst Kısım: Puanlar (My Rate | Group Rate) */}
                         <View style={styles.unifiedRatesHeader}>
                             <View style={styles.rateColumn}>
-                                <Text style={styles.rateLabel}>My Rate</Text>
+                                <Text style={styles.rateLabel}>PUANIM</Text>
                                 <Text style={styles.rateValue}>{myRating !== null ? myRating : "-"}</Text>
                                 {renderAccurateStars(myRating)}
                             </View>
@@ -350,13 +350,11 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             <View style={styles.rateDivider} />
                             
                             <View style={styles.rateColumn}>
-                                <Text style={styles.rateLabel}>Group Rate</Text>
+                                <Text style={styles.rateLabel}>GRUP PUANI</Text>
                                 <Text style={styles.rateValue}>{groupAverage > 0 ? groupAverage.toFixed(1) : "-"}</Text>
                                 {renderAccurateStars(groupAverage > 0 ? groupAverage : null)}
                             </View>
                         </View>
-
-                        <View style={styles.unifiedLine} />
 
                         <View style={styles.unifiedLine} />
 
@@ -406,10 +404,10 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                     </View>
                     {Platform.OS !== "web" && latitude && longitude && MapView && (
                        <View style={styles.sectionContainer}>
-                        <Text style={styles.sectionTitle}>Photos</Text>
+                        <Text style={styles.sectionTitle}>Fotoğraflar</Text>
                         {!photos.length ? (
                             <View style={styles.emptyCard}>
-                                <Text style={styles.emptyCardText}>No photos yet. Be the first to upload!</Text>
+                                <Text style={styles.emptyCardText}>Henüz fotoğraf eklenmemiş. İlk fotoğrafı yükleyin!</Text>
                             </View>
                         ) : (
                             <ScrollView
@@ -450,17 +448,17 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             </View>
                         )}
                         <View style={styles.infoRow}>
-                            <Ionicons name="person-outline" size={20} color="#64748b" style={styles.infoIcon} />
-                            <Text style={styles.infoText}>Added by <Text style={{ fontWeight: "700", color: "#102a43" }}>{createdByName || "Unknown"}</Text></Text>
+                            <Ionicons name="person-sharp" size={20} color="#64748b" style={styles.infoIcon} />
+                            <Text style={styles.infoText}><Text style={{ fontWeight: "700", color: "#102a43" }}>{createdByName || "Unknown"} Ekledi</Text></Text>
                         </View>
                         <View style={styles.infoRow}>
-                            <Ionicons name="calendar-outline" size={20} color="#64748b" style={styles.infoIcon} />
-                            <Text style={styles.infoText}>Created on {formatDate(createdAt)}</Text>
+                            <Ionicons name="calendar-sharp" size={20} color="#986c64" style={styles.infoIcon} />
+                            <Text style={[styles.infoText,{ color: "#986c64", fontWeight: "600" }]}>{formatDate(createdAt)} Tarihinde Eklendi</Text>
                         </View>
                         {!!visitDate && (
                             <View style={styles.infoRow}>
-                                <Ionicons name="flag-outline" size={20} color="#16a34a" style={styles.infoIcon} />
-                                <Text style={[styles.infoText, { color: "#16a34a", fontWeight: "600" }]}>Visited on {formatDate(visitDate)}</Text>
+                                <Ionicons name="flag-sharp" size={20} color="#16a34aba" style={styles.infoIcon} />
+                                <Text style={[styles.infoText, { color: "#16a34aba", fontWeight: "600" }]}>{formatDate(visitDate)} Tarihinde Ziyaret Edildi</Text>
                             </View>
                         )}
                     </View>

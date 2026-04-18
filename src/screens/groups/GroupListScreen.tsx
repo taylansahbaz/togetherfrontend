@@ -22,6 +22,8 @@ import {
 
 
 
+
+
     ImageBackground,
     Modal,
     Platform,
@@ -298,7 +300,7 @@ export default function GroupsScreen({ navigation }: any) {
                     styles.groupCard,
                     {
                         borderColor: isSelected ? groupColor : `${groupColor}55`,
-                        backgroundColor: isSelected ? `${groupColor}18` : `${groupColor}1`,
+                        backgroundColor: isSelected ? `${groupColor}20` : `${groupColor}12`,
                     },
                 ]}
             >

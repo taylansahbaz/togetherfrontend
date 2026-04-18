@@ -1,5 +1,5 @@
-import { api } from "./client";
 import { MapPlace } from "../types/place";
+import { api } from "./client";
 
 export interface ResolveGoogleLinkResponse {
     originalUrl?: string;

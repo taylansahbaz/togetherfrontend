@@ -72,4 +72,7 @@ export interface MapPlace {
     latitude: number;
     longitude: number;
     status: PlaceStatus;
+    category?: string;
+    city?: string;
+    groupName?: string;
 }

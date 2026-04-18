@@ -14,14 +14,14 @@ export default function HomeStackNavigator() {
         <Stack.Navigator>
      
             <Stack.Screen 
-                name="HomeScreen" 
+                name="Gecmis" 
                 component={HomeScreen} 
                 options={{ headerShown: false }} 
             />
             <Stack.Screen name="CreatePlace" component={CreatePlaceScreen} options={{headerShown: false  }} />
-            <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{ title: "Place Detail" }} />
-            <Stack.Screen name="EditReview" component={EditReviewScreen} options={{ title: "Review" }} />
-            <Stack.Screen name="UploadPhoto" component={UploadPhotoScreen} options={{ title: "Upload Photo" }} />
+            <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{  headerShown: false }} />
+            <Stack.Screen name="EditReview" component={EditReviewScreen} options={{  headerShown: false }} />
+            <Stack.Screen name="UploadPhoto" component={UploadPhotoScreen} options={{  headerShown: false}} />
             <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
     );

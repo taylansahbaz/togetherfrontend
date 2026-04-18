@@ -3,7 +3,6 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { registerPushToken } from "../api/notification";
 import { navigate } from "../navigation/NavigationRef";
 
 Notifications.setNotificationHandler({
@@ -27,12 +26,6 @@ export function usePushNotifications() {
       if (!token) return;
 
       setExpoPushToken(token);
-
-      try {
-        await registerPushToken(token, Platform.OS);
-      } catch (error) {
-        console.log("Push token backend register error:", error);
-      }
     });
 
     notificationListener.current =

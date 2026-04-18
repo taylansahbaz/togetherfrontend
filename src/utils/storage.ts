@@ -14,6 +14,18 @@ export const storage = {
         await AsyncStorage.removeItem(STORAGE_KEYS.token);
     },
 
+    async setRefreshToken(refreshToken: string) {
+        await AsyncStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+    },
+
+    async getRefreshToken(): Promise<string | null> {
+        return await AsyncStorage.getItem(STORAGE_KEYS.refreshToken);
+    },
+
+    async removeRefreshToken() {
+        await AsyncStorage.removeItem(STORAGE_KEYS.refreshToken);
+    },
+
     async setSelectedGroupId(groupId: string) {
         await AsyncStorage.setItem(STORAGE_KEYS.selectedGroupId, groupId);
     },
@@ -29,6 +41,7 @@ export const storage = {
     async clearAllAuthData() {
         await AsyncStorage.multiRemove([
             STORAGE_KEYS.token,
+            STORAGE_KEYS.refreshToken,
             STORAGE_KEYS.selectedGroupId,
         ]);
     },

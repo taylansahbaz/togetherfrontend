@@ -2,9 +2,9 @@ import 'dotenv/config';
 
 export default {
   expo: {
-    name: "lets-together",
+    name: "Lets Together",
     slug: "lets-together",
-    version: "1.0.1",
+    version: "1.0.3",
     orientation: "portrait",
     icon: "./assets/images/applogo.png",
     scheme: "lets-together",
@@ -13,16 +13,17 @@ export default {
 
     ios: {
       supportsTablet: true,
-      buildNumber: "1.0.1",
+      buildNumber: "1.0.3",
       bundleIdentifier: "com.taylansahbaz.letstogether",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        LSApplicationQueriesSchemes: ["comgooglemaps", "waze"]
       },
     },
 
     android: {
       package: "com.taylansahbaz.letstogether",
-      versionCode: 2,
+      versionCode: 3,
       config: {
         googleMaps: {
           apiKey: "AIzaSyCk0XzUBX1U2R7neSR2sJ0TI1TdjcOdx8U",

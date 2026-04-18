@@ -31,32 +31,32 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
 
   const validate = () => {
     if (!email.trim()) {
-      setError("Email is missing.");
+      setError("E-posta eksik.");
       return false;
     }
 
     if (!code.trim()) {
-      setError("Reset code cannot be empty.");
+      setError("Sıfırlama kodu boş bırakılamaz.");
       return false;
     }
 
     if (!newPassword) {
-      setError("New password cannot be empty.");
+      setError("Yeni şifre boş bırakılamaz.");
       return false;
     }
 
     if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError("Şifre en az 6 karakter olmalıdır.");
       return false;
     }
 
     if (!confirmPassword) {
-      setError("Please confirm your password.");
+      setError("Lütfen şifrenizi onaylayınız.");
       return false;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Şifreler eşleşmiyor.");
       return false;
     }
 

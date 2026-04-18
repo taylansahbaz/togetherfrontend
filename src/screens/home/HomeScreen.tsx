@@ -1,21 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Modal,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ImageBackground,
+  Modal,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
+import { getMyGroups } from "../../api/groups";
 import { getPlacesByGroup } from "../../api/places";
 import AppButton from "../../components/common/AppButton";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
@@ -25,8 +26,8 @@ import { Place } from "../../types/place";
 import { formatDate } from "../../utils/date";
 import { getApiErrorMessage } from "../../utils/helpers";
 import {
-    getPlaceCategoryImage,
-    getPlaceCategoryItem,
+  getPlaceCategoryImage,
+  getPlaceCategoryItem,
 } from "../../utils/placeCategories";
 
 const COLORS = {
@@ -333,7 +334,7 @@ const PlaceCard = ({
 
 export default function HomeScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { selectedGroupId, selectedGroup } = useSelectedGroup();
+  const { selectedGroupId, selectedGroup, initializeSelectedGroup } = useSelectedGroup();
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
@@ -374,6 +375,25 @@ export default function HomeScreen({ navigation }: any) {
       load();
     }, [selectedGroupId])
   );
+
+  // Initialize groups when user changes (after login)
+  useEffect(() => {
+    const initializeGroups = async () => {
+      if (!user?.id) return;
+
+      try {
+        const response = await getMyGroups();
+        const { groups, lastSelectedGroupId: backendLastSelectedGroupId } = response.data;
+        
+        // Use user's lastSelectedGroupId from auth, fallback to backend value
+        const groupIdToSelect = user.lastSelectedGroupId ?? backendLastSelectedGroupId;
+        await initializeSelectedGroup(groups, groupIdToSelect);      } catch (error) {
+        console.log("Failed to initialize groups:", error);
+      }
+    };
+
+    initializeGroups();
+  }, [user?.id]);
 
   const availableCities = useMemo(() => {
     const cities = new Set<string>();
@@ -576,7 +596,7 @@ export default function HomeScreen({ navigation }: any) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 150 }}
             >
-              <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
+              <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
                 <View
                   style={{
                     flexDirection: "row",

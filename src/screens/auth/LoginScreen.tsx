@@ -1,16 +1,16 @@
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  useWindowDimensions,
-  View
+    Alert,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    Text,
+    useWindowDimensions,
+    View
 } from "react-native";
 import { resendVerification } from "../../api/auth";
 import AppButton from "../../components/common/AppButton";
@@ -26,12 +26,13 @@ export default function LoginScreen({ navigation }: any) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const validate = () => {
     if (!email.trim()) {
-      setError("Email cannot be empty.");
+      setError("E-posta boş bırakılamaz.");
       return false;
     }
 
@@ -116,8 +117,8 @@ export default function LoginScreen({ navigation }: any) {
                   flexGrow: 1,
                   justifyContent: "center",
                   alignItems: "center",
-                  paddingHorizontal: 30,
-                  paddingBottom: height * 0.25,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
                 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
@@ -125,35 +126,34 @@ export default function LoginScreen({ navigation }: any) {
                 <View
                   style={{
                     width: "100%",
-                    maxWidth: 470,
+                    maxWidth: 420,
                     alignItems: "center",
                   }}
                 >
                   <Image
                     source={require("../../../assets/images/logoyazisiz.png")}
                     style={{
-                      width: 350,
-                      height: 350,
+                      width: 280,
+                      height: 280,
                       resizeMode: "contain",
-                      marginTop: -40,
-                      marginBottom: 80,
+                      marginTop: -92,
+                      marginBottom: 10,
                       opacity: 0.8,
                     }}
                   />
 
                   <Text
                     style={{
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: "500",
                       color: "rgba(255, 255, 255, 0.8)",
-                      marginTop: -75,
-                      marginBottom: 100,
+                      marginBottom: 16,
                       letterSpacing: 0.5,
                       textAlign: "center",
                       textTransform: "uppercase",
                     }}
                   >
-                    Continue to your shared memories
+                    Paylaşılan Anılarına Devam Et
                   </Text>
 
                   <ErrorMessage message={error} />
@@ -163,18 +163,21 @@ export default function LoginScreen({ navigation }: any) {
                       value={email}
                       onChangeText={setEmail}
                       keyboardType="email-address"
-                      placeholder="Email"
+                      placeholder="E-posta"
                     />
 
                     <AppInput
                       value={password}
                       onChangeText={setPassword}
-                      secureTextEntry
+                      secureTextEntry={!showPassword}
                       placeholder="Şifre"
+                      showPasswordToggle
+                      onPasswordToggle={() => setShowPassword(!showPassword)}
+                      isPasswordVisible={showPassword}
                     />
-                  <View style={{ marginTop: 0 }}>
+                  <View style={{ marginTop: 4 }}>
                   <AppButton
-                    title="Devam Et..."
+                    title="Devam Et"
                     onPress={onLogin}
                     loading={loading}
                   />
@@ -183,16 +186,16 @@ export default function LoginScreen({ navigation }: any) {
                 <View
                   style={{
                     flexDirection: "row",
-                    gap: 12,
-                    marginTop: 14,
+                    gap: 8,
+                    marginTop: 8,
                   }}
                 >
                   <Pressable
                     onPress={() => navigation.navigate("ForgotPassword")}
                     style={{
                       flex: 1,
-                      height: 54,
-                      borderRadius: 16,
+                      height: 44,
+                      borderRadius: 12,
                       backgroundColor: "rgba(149, 215, 209, 0.65)",
                       borderWidth: 1,
                       borderColor: "rgba(255,255,255,0.18)",
@@ -202,8 +205,8 @@ export default function LoginScreen({ navigation }: any) {
                   >
                     <Text
                       style={{
-                        fontSize: 15,
-                        fontWeight: "700",
+                        fontSize: 13,
+                        fontWeight: "600",
                         color: "#FFFFFF",
                       }}
                     >
@@ -215,8 +218,8 @@ export default function LoginScreen({ navigation }: any) {
                     onPress={() => navigation.navigate("Register")}
                     style={{
                       flex: 1,
-                      height: 54,
-                      borderRadius: 16,
+                      height: 44,
+                      borderRadius: 12,
                       backgroundColor: "rgba(244,231,161,0.65)",
                       borderWidth: 1,
                       borderColor: "rgba(244,231,161,0.35)",
@@ -226,8 +229,8 @@ export default function LoginScreen({ navigation }: any) {
                   >
                     <Text
                       style={{
-                        fontSize: 15,
-                        fontWeight: "700",
+                        fontSize: 13,
+                        fontWeight: "600",
                         color: "#fffbe3",
                       }}
                     >

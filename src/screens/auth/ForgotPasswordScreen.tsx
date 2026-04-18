@@ -28,13 +28,13 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 
   const validate = () => {
     if (!email.trim()) {
-      setError("Email cannot be empty.");
+      setError("E-posta boş bırakılamaz.");
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      setError("Please enter a valid email address.");
+      setError("Lütfen geçerli bir e-posta adresi giriniz.");
       return false;
     }
 
@@ -134,11 +134,11 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 
                   <View style={{ width: "100%" }}>
                     <AppInput
-                      label="Email"
+                      label="E-posta"
                       value={email}
                       onChangeText={setEmail}
                       keyboardType="email-address"
-                      placeholder="Email"
+                      placeholder="E-posta"
                     />
 
                     <View style={{ marginTop: 12 }}>

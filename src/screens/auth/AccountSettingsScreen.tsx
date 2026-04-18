@@ -16,13 +16,11 @@ import {
 
 import {
     changePassword,
-    deleteAccount,
     getMe,
     updateProfile
 } from "../../api/auth";
 import CustomAlert from "../../components/common/CustomAlert";
 import { useAuth } from "../../hooks/useAuth";
-import { storage } from "../../utils/storage";
 
 type AlertType = "info" | "success" | "danger";
 
@@ -51,8 +49,6 @@ export default function AccountSettingsScreen() {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [savingPassword, setSavingPassword] = useState(false);
-
-    const [deleting, setDeleting] = useState(false);
 
     const [alertState, setAlertState] = useState<AlertState>({
         visible: false,
@@ -111,7 +107,7 @@ export default function AccountSettingsScreen() {
                 setName(user?.name || "");
                 setEmail(user?.email || "");
             } catch (error) {
-                console.log("User data could not be loaded", error);
+                console.log("Kullanıcı verileri yüklenemedi", error);
             } finally {
                 setLoadingProfile(false);
             }
@@ -207,44 +203,6 @@ export default function AccountSettingsScreen() {
         }
     };
 
-    const handleDeleteAccountConfirmed = async () => {
-        try {
-            setDeleting(true);
-
-            await deleteAccount();
-
-            if (storage.removeToken) {
-                await storage.removeToken();
-            }
-
-            navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }],
-            });
-        } catch (error: any) {
-            setDeleting(false);
-
-            showAlert({
-                title: "Hata",
-                message: error?.response?.data?.message || "Hesap silinemedi.",
-                type: "danger",
-            });
-        }
-    };
-
-    const handleDeleteAccount = () => {
-        showAlert({
-            title: "Hesabı Sil",
-            message:
-                "Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
-            type: "danger",
-            confirmText: "Evet, Hesabımı Sil",
-            cancelText: "İptal",
-            showCancelButton: true,
-            onConfirm: handleDeleteAccountConfirmed,
-        });
-    };
-
     return (
         <View style={styles.container}>
             <View style={styles.navyHeader}>
@@ -257,7 +215,7 @@ export default function AccountSettingsScreen() {
                             <Ionicons name="arrow-back" size={24} color="white" />
                         </TouchableOpacity>
 
-                        <Text style={styles.headerTitle}>Account Settings</Text>
+                        <Text style={styles.headerTitle}>Hesap Ayarları</Text>
 
                         <View style={{ width: 40 }} />
                     </View>
@@ -273,7 +231,7 @@ export default function AccountSettingsScreen() {
                     contentContainerStyle={styles.scrollContent}
                 >
                     <View style={styles.card}>
-                        <Text style={styles.sectionTitle}>Profile Information</Text>
+                        <Text style={styles.sectionTitle}>Profil Bilgileri</Text>
 
                         {loadingProfile ? (
                             <ActivityIndicator
@@ -284,7 +242,7 @@ export default function AccountSettingsScreen() {
                         ) : (
                             <View>
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Full Name</Text>
+                                    <Text style={styles.label}>Ad Soyad</Text>
                                     <View style={styles.inputContainer}>
                                         <Ionicons
                                             name="person-outline"
@@ -296,14 +254,14 @@ export default function AccountSettingsScreen() {
                                             style={styles.input}
                                             value={name}
                                             onChangeText={setName}
-                                            placeholder="Enter your name"
+                                            placeholder="Adınızı girin"
                                             placeholderTextColor="#cbd5e1"
                                         />
                                     </View>
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Email Address</Text>
+                                    <Text style={styles.label}>E-posta Adresi</Text>
                                     <View style={styles.inputContainer}>
                                         <Ionicons
                                             name="mail-outline"
@@ -315,7 +273,7 @@ export default function AccountSettingsScreen() {
                                             style={styles.input}
                                             value={email}
                                             onChangeText={setEmail}
-                                            placeholder="Enter your email"
+                                            placeholder="E-posta adresinizi girin"
                                             placeholderTextColor="#cbd5e1"
                                             keyboardType="email-address"
                                             autoCapitalize="none"
@@ -332,7 +290,7 @@ export default function AccountSettingsScreen() {
                                         <ActivityIndicator color="white" />
                                     ) : (
                                         <Text style={styles.primaryButtonText}>
-                                            Save Profile
+                                            Profili Kaydet
                                         </Text>
                                     )}
                                 </TouchableOpacity>
@@ -341,10 +299,10 @@ export default function AccountSettingsScreen() {
                     </View>
 
                     <View style={styles.card}>
-                        <Text style={styles.sectionTitle}>Change Password</Text>
+                        <Text style={styles.sectionTitle}>Şifre Değiştir</Text>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Current Password</Text>
+                            <Text style={styles.label}>Mevcut Şifre</Text>
                             <View style={styles.inputContainer}>
                                 <Ionicons
                                     name="lock-closed-outline"
@@ -356,7 +314,7 @@ export default function AccountSettingsScreen() {
                                     style={styles.input}
                                     value={currentPassword}
                                     onChangeText={setCurrentPassword}
-                                    placeholder="Enter current password"
+                                    placeholder="Mevcut şifrenizi girin"
                                     placeholderTextColor="#cbd5e1"
                                     secureTextEntry
                                 />
@@ -364,7 +322,7 @@ export default function AccountSettingsScreen() {
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>New Password</Text>
+                            <Text style={styles.label}>Yeni Şifre</Text>
                             <View style={styles.inputContainer}>
                                 <Ionicons
                                     name="key-outline"
@@ -376,7 +334,7 @@ export default function AccountSettingsScreen() {
                                     style={styles.input}
                                     value={newPassword}
                                     onChangeText={setNewPassword}
-                                    placeholder="Enter new password"
+                                    placeholder="Yeni şifrenizi girin"
                                     placeholderTextColor="#cbd5e1"
                                     secureTextEntry
                                 />
@@ -392,31 +350,8 @@ export default function AccountSettingsScreen() {
                                 <ActivityIndicator color="white" />
                             ) : (
                                 <Text style={styles.primaryButtonText}>
-                                    Update Password
+                                    Şifreyi Güncelle
                                 </Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.card, styles.dangerCard]}>
-                        <View style={styles.dangerHeader}>
-                            <Ionicons name="warning" size={24} color="#ef4444" />
-                            <Text style={styles.dangerTitle}>Danger Zone</Text>
-                        </View>
-
-                        <Text style={styles.dangerDesc}>
-                            Once you delete your account, there is no going back. Please be certain.
-                        </Text>
-
-                        <TouchableOpacity
-                            style={styles.dangerButton}
-                            onPress={handleDeleteAccount}
-                            disabled={deleting}
-                        >
-                            {deleting ? (
-                                <ActivityIndicator color="#ef4444" />
-                            ) : (
-                                <Text style={styles.dangerButtonText}>Delete Account</Text>
                             )}
                         </TouchableOpacity>
                     </View>
@@ -557,48 +492,6 @@ const styles = StyleSheet.create({
 
     primaryButtonText: {
         color: "white",
-        fontSize: 15,
-        fontWeight: "700",
-    },
-
-    dangerCard: {
-        borderWidth: 1,
-        borderColor: "#fecaca",
-        backgroundColor: "#fff5f5",
-    },
-
-    dangerHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 12,
-    },
-
-    dangerTitle: {
-        fontSize: 18,
-        fontWeight: "800",
-        color: "#ef4444",
-        marginLeft: 8,
-    },
-
-    dangerDesc: {
-        fontSize: 14,
-        color: "#991b1b",
-        marginBottom: 20,
-        lineHeight: 20,
-    },
-
-    dangerButton: {
-        backgroundColor: "white",
-        borderWidth: 1,
-        borderColor: "#ef4444",
-        borderRadius: 16,
-        height: 52,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-
-    dangerButtonText: {
-        color: "#ef4444",
         fontSize: 15,
         fontWeight: "700",
     },
