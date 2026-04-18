@@ -683,12 +683,25 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
 
   const openDatePicker = () => {
     if (Platform.OS === "android") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       DateTimePickerAndroid.open({
         value: parseInputDate(visitDate),
         mode: "date",
         is24Hour: true,
+        maximumDate: today,
         onChange: (_event, selectedDate) => {
           if (selectedDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const selected = new Date(selectedDate);
+            selected.setHours(0, 0, 0, 0);
+            
+            if (selected > today) {
+              Alert.alert("Uyarı", "Ziyaret ettim için gelecek tarihleri seçemezsiniz. Lütfen bugün veya daha önceki bir tarih seçiniz.");
+              return;
+            }
+            
             setVisitDate(formatDateToInput(selectedDate));
           }
         },
@@ -705,6 +718,17 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
     }
 
     if (selectedDate) {
+      // Ziyaret ettim için: Bugünden ileri doğru seçemezsiniz (sadece bugün ve geriye)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selected = new Date(selectedDate);
+      selected.setHours(0, 0, 0, 0);
+      
+      if (selected > today) {
+        Alert.alert("Uyarı", "Ziyaret ettim için gelecek tarihleri seçemezsiniz. Lütfen bugün veya daha önceki bir tarih seçiniz.");
+        return;
+      }
+      
       setVisitDate(formatDateToInput(selectedDate));
     }
   };
@@ -1211,8 +1235,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                     <View style={sectionCardStyle}>
                       <SectionTitle
                         icon="images-outline"
-                        title="Photos"
-                        subtitle="You can add up to 5 photos."
+                        title="Fotoğraflar"
                       />
 
                       <TouchableOpacity
@@ -1233,7 +1256,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                             fontSize: 13,
                           }}
                         >
-                          + Add Photos
+                          + Fotoğraf Ekle
                         </Text>
                       </TouchableOpacity>
                       <CustomAlert
@@ -1302,7 +1325,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                             fontStyle: "italic",
                           }}
                         >
-                          No photos selected yet.
+                            Henüz fotoğraf eklenmedi.
                         </Text>
                       )}
                     </View>
@@ -1311,15 +1334,15 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                       <View style={sectionCardStyle}>
                         <SectionTitle
                           icon="star-sharp"
-                          title="Quick Review"
-                          subtitle="Optional rating and short comment."
+                          title="Hızlı Değerlendirme"
+                          subtitle="İsteğe bağlı puanlama ve kısa yorum."
                         />
 
                         <StarRating score={score} setScore={setScore} />
 
                         <FormField
                           icon="chatbubble-outline"
-                          placeholder="Write your experience..."
+                          placeholder="Deneyiminizi yazın..."
                           value={comment}
                           onChangeText={setComment}
                           multiline={true}
@@ -1371,16 +1394,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                                   color: colors.text,
                                 }}
                               >
-                                Would go again
-                              </Text>
-                              <Text
-                                style={{
-                                  marginTop: 2,
-                                  fontSize: 12,
-                                  color: colors.muted,
-                                }}
-                              >
-                                Save your personal opinion.
+                                Tekrar gider miyim?
                               </Text>
                             </View>
                           </View>
@@ -1544,6 +1558,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                         onChange={handleDateChange}
                         themeVariant="light"
                         textColor="#1F2937"
+                        maximumDate={new Date()}
                         style={{
                           backgroundColor: "#fff",
                           height: 180,

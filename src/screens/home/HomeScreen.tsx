@@ -22,6 +22,7 @@ import AppButton from "../../components/common/AppButton";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
+import { Group } from "../../types/group";
 import { Place } from "../../types/place";
 import { formatDate } from "../../utils/date";
 import { getApiErrorMessage } from "../../utils/helpers";
@@ -334,13 +335,15 @@ const PlaceCard = ({
 
 export default function HomeScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { selectedGroupId, selectedGroup, initializeSelectedGroup } = useSelectedGroup();
+  const { selectedGroupId, selectedGroup, setSelectedGroup, initializeSelectedGroup } = useSelectedGroup();
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"all" | "visited" | "wishlist">(
@@ -383,11 +386,12 @@ export default function HomeScreen({ navigation }: any) {
 
       try {
         const response = await getMyGroups();
-        const { groups, lastSelectedGroupId: backendLastSelectedGroupId } = response.data;
+        const { groups: fetchedGroups, lastSelectedGroupId: backendLastSelectedGroupId } = response.data;
+        setGroups(fetchedGroups);
         
         // Use user's lastSelectedGroupId from auth, fallback to backend value
         const groupIdToSelect = user.lastSelectedGroupId ?? backendLastSelectedGroupId;
-        await initializeSelectedGroup(groups, groupIdToSelect);      } catch (error) {
+        await initializeSelectedGroup(fetchedGroups, groupIdToSelect);      } catch (error) {
         console.log("Failed to initialize groups:", error);
       }
     };
@@ -596,7 +600,7 @@ export default function HomeScreen({ navigation }: any) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 150 }}
             >
-              <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
+              <View style={{ paddingHorizontal: 20, paddingTop: 10 ,marginTop: 10}}>
                 <View
                   style={{
                     flexDirection: "row",
@@ -605,11 +609,13 @@ export default function HomeScreen({ navigation }: any) {
                     marginBottom: 16,
                   }}
                 >
-                  <Text
-                    style={{ fontSize: 22, fontWeight: "900", color: COLORS.text }}
-                  >
-                    {selectedGroup?.name} ile Anıların
-                  </Text>
+                  <Pressable onPress={() => setIsGroupModalVisible(true)}>
+                    <Text
+                      style={{ fontSize: 22, fontWeight: "900", color: COLORS.text }}
+                    >
+                      {selectedGroup?.name.charAt(0).toUpperCase() + selectedGroup?.name.slice(1)} ile Anıların
+                    </Text>
+                  </Pressable>
 
                   <View
                     style={{
@@ -650,153 +656,7 @@ export default function HomeScreen({ navigation }: any) {
                 </View>
               </View>
 
-              <View
-                style={{
-                  paddingHorizontal: 20,
-                  marginTop: 20,
-                  flexDirection: "row",
-                  gap: 12,
-                }}
-              >
-                <Pressable
-                  onPress={() =>
-                    spotlightPlace &&
-                    navigation.navigate("PlaceDetail", {
-                      placeId: spotlightPlace.id,
-                    })
-                  }
-                  style={{
-                    flex: 1,
-                    backgroundColor: spotlightPlace
-                      ? COLORS.hero
-                      : COLORS.secondarySoft,
-                    borderRadius: 20,
-                    paddingVertical: 12,
-                    paddingHorizontal: 14,
-                    minHeight: 85,
-                    justifyContent: "center",
-                    shadowColor: spotlightPlace ? COLORS.heroDark : "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: spotlightPlace ? 0.2 : 0.05,
-                    shadowRadius: 8,
-                    elevation: 2,
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Ionicons
-                      name="bulb-outline"
-                      size={14}
-                      color={spotlightPlace ? "#D9EDF2" : COLORS.textLight}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "800",
-                        color: spotlightPlace ? "#D9EDF2" : COLORS.textLight,
-                        textTransform: "uppercase",
-                        marginLeft: 4,
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Sonraki Fikir
-                    </Text>
-                  </View>
-
-                  {spotlightPlace ? (
-                    <Text
-                      numberOfLines={2}
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "800",
-                        color: COLORS.white,
-                        lineHeight: 20,
-                      }}
-                    >
-                      {spotlightPlace.title}
-                    </Text>
-                  ) : (
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: "600",
-                        color: COLORS.textMuted,
-                      }}
-                    >
-                      Henüz istek boş.
-                    </Text>
-                  )}
-                </Pressable>
-
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: COLORS.surface,
-                    borderRadius: 20,
-                    paddingVertical: 12,
-                    paddingHorizontal: 14,
-                    minHeight: 85,
-                    justifyContent: "center",
-                    borderWidth: 1,
-                    borderColor: COLORS.border,
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={14}
-                      color={COLORS.heroDark}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "800",
-                        color: COLORS.textLight,
-                        textTransform: "uppercase",
-                        marginLeft: 4,
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Son Ziyaret
-                    </Text>
-                  </View>
-
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      fontSize: 15,
-                      fontWeight: "800",
-                      color: COLORS.text,
-                      marginBottom: 2,
-                    }}
-                  >
-                    {recentPlace?.title || "Henüz gidilmedi"}
-                  </Text>
-
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: COLORS.textMuted,
-                    }}
-                  >
-                    {recentPlace?.visitDate ? formatDate(recentPlace.visitDate) : "—"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={{ paddingHorizontal: 20, marginTop: 24, marginBottom: 8 }}>
+              <View style={{ paddingHorizontal: 20, marginTop: 10, marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <View
                     style={{
@@ -1104,7 +964,7 @@ export default function HomeScreen({ navigation }: any) {
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      marginBottom: 24,
+                      marginBottom: 10,
                     }}
                   >
                     <Text
@@ -1354,6 +1214,131 @@ export default function HomeScreen({ navigation }: any) {
                   </View>
                 </View>
               </View>
+            </Modal>
+
+            {/* Grup Seçim Modal */}
+            <Modal
+              visible={isGroupModalVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setIsGroupModalVisible(false)}
+            >
+              <Pressable
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  justifyContent: "flex-end",
+                }}
+                onPress={() => setIsGroupModalVisible(false)}
+              >
+                <Pressable
+                  style={{
+                    backgroundColor: COLORS.surface,
+                    borderTopLeftRadius: 28,
+                    borderTopRightRadius: 28,
+                    paddingBottom: 32,
+                    maxHeight: "75%",
+                  }}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <View
+                    style={{
+                      borderBottomWidth: 1,
+                      borderBottomColor: COLORS.border,
+                      paddingHorizontal: 20,
+                      paddingVertical: 16,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "900",
+                        color: COLORS.text,
+                      }}
+                    >
+                      Gruplarım
+                    </Text>
+                    <Pressable onPress={() => setIsGroupModalVisible(false)}>
+                      <Ionicons name="close" size={24} color={COLORS.textMuted} />
+                    </Pressable>
+                  </View>
+
+                  <ScrollView
+                    style={{ paddingHorizontal: 20 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {groups.map((group) => (
+                      <Pressable
+                        key={group.id}
+                        onPress={async () => {
+                          await setSelectedGroup(group);
+                          setIsGroupModalVisible(false);
+                        }}
+                        style={{
+                          marginVertical: 8,
+                          paddingVertical: 14,
+                          paddingHorizontal: 12,
+                          borderRadius: 20,
+                          backgroundColor: group.colorCode ? `${group.colorCode}20` : COLORS.surfaceSoft,
+                          borderWidth: 2,
+                          borderColor: group.colorCode || COLORS.border,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                          <View
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              backgroundColor: group.colorCode || COLORS.primary,
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginRight: 12,
+                            }}
+                          >
+                            <Ionicons
+                              name={group.selectedIconsJson || "planet"}
+                              size={20}
+                              color="white"
+                            />
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "800",
+                              color: COLORS.text,
+                            }}
+                          >
+                            {group.name}
+                          </Text>
+                        </View>
+
+                        {selectedGroupId === group.id && (
+                          <View
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              backgroundColor: group.colorCode || COLORS.primary,
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginLeft: 12,
+                            }}
+                          >
+                            <Ionicons name="checkmark" size={18} color="white" />
+                          </View>
+                        )}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </Pressable>
+              </Pressable>
             </Modal>
 
             <View

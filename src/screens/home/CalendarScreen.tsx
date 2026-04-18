@@ -18,6 +18,7 @@ import { Calendar, LocaleConfig } from "react-native-calendars";
 
 // YENİ: Artık sadece seçili grubu değil, tüm takvimi getiren fonksiyonu kullanıyoruz
 import { getMyNotifications } from "@/src/api/notification";
+import { getPlaceCategoryLabel } from "@/src/utils/placeCategories";
 import { getMyCalendarPlaces } from "../../api/places";
 import { useAuth } from "../../hooks/useAuth";
 import { getApiErrorMessage } from "../../utils/helpers";
@@ -634,8 +635,8 @@ export default function CalendarScreen({ navigation }: any) {
                                                                 {place.city
                                                                     ? `${place.city} • `
                                                                     : ""}
-                                                                {place.category}
-                                                                  {place.groupName ? ` • ${place.groupName}` : ""}
+                                                                {getPlaceCategoryLabel(place.category)}
+                                                                  {place.groupName ? ` • ${place.groupName.charAt(0).toUpperCase() + place.groupName.slice(1)}` : ""}
 
                                                             </Text>
                                                         </View>

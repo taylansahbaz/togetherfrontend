@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ImageBackground,
   KeyboardAvoidingView,
   Modal,
@@ -447,12 +448,25 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
 
   const openDatePicker = () => {
     if (Platform.OS === "android") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       DateTimePickerAndroid.open({
         value: parseInputDate(visitDate),
         mode: "date",
         is24Hour: true,
+        minimumDate: today,
         onChange: (_event, selectedDate) => {
           if (selectedDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const selected = new Date(selectedDate);
+            selected.setHours(0, 0, 0, 0);
+            
+            if (selected < today) {
+              Alert.alert("Uyarı", "Plan için geçmiş tarihleri seçemezsiniz. Lütfen bugün veya daha sonraki bir tarih seçiniz.");
+              return;
+            }
+            
             setVisitDate(formatDateToInput(selectedDate));
           }
         },
@@ -554,6 +568,17 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
     }
 
     if (selectedDate) {
+      // Plan için: Bugünden geri doğru seçemezsiniz (sadece bugün ve ileri)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selected = new Date(selectedDate);
+      selected.setHours(0, 0, 0, 0);
+      
+      if (selected < today) {
+        Alert.alert("Uyarı", "Plan için geçmiş tarihleri seçemezsiniz. Lütfen bugün veya daha sonraki bir tarih seçiniz.");
+        return;
+      }
+      
       setVisitDate(formatDateToInput(selectedDate));
     }
   };
@@ -1075,6 +1100,7 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                         onChange={handleDateChange}
                         themeVariant="light"
                         textColor="#1F2937"
+                        minimumDate={new Date()}
                         style={{
                           backgroundColor: "#fff",
                           height: 180,

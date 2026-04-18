@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { uploadPlacePhoto } from "../../api/photos";
 import { getApiErrorMessage } from "../../utils/helpers";
 
@@ -10,8 +10,31 @@ export default function UploadPhotoScreen({ route, navigation }: any) {
     const [imageUri, setImageUri] = useState("");
     const [caption, setCaption] = useState("");
     const [loading, setLoading] = useState(false);
+    const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
 
-    const pickImage = async () => {
+    const takePhoto = async () => {
+        setIsSourceModalVisible(false);
+        
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+        if (!permission.granted) {
+            Alert.alert("İzin Gerekli", "Fotoğraf çekebilmek için kamera erişimine izin vermelisiniz.");
+            return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets.length > 0) {
+            setImageUri(result.assets[0].uri);
+        }
+    };
+
+    const pickFromGallery = async () => {
+        setIsSourceModalVisible(false);
+        
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permission.granted) {
@@ -62,7 +85,7 @@ export default function UploadPhotoScreen({ route, navigation }: any) {
                     
                     <TouchableOpacity 
                         style={[styles.imagePickerBox, imageUri ? styles.imagePickerFilled : null]} 
-                        onPress={pickImage}
+                        onPress={() => setIsSourceModalVisible(true)}
                         activeOpacity={0.8}
                     >
                         {imageUri ? (
@@ -77,14 +100,14 @@ export default function UploadPhotoScreen({ route, navigation }: any) {
                                 <View style={styles.iconCircle}>
                                     <Ionicons name="images" size={32} color="#3b82f6" />
                                 </View>
-                                <Text style={styles.emptyStateTitle}>Galeriden Seç</Text>
-                                <Text style={styles.emptyStateDesc}>Bu mekana ait harika bir anınızı gruba ekleyin</Text>
+                                <Text style={styles.emptyStateTitle}>Fotoğraf Ekle</Text>
+                                <Text style={styles.emptyStateDesc}>Buradan harika bir anınızı gruba ekleyin</Text>
                             </View>
                         )}
                     </TouchableOpacity>
 
                     <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Fotoğraf Notu (Opsiyonel)</Text>
+                        <Text style={styles.inputLabel}>Fotoğraf Notu</Text>
                         <TextInput
                             style={styles.textInput}
                             placeholder="Bu fotoğrafla ilgili ne hatırlıyorsunuz?"
@@ -114,6 +137,58 @@ export default function UploadPhotoScreen({ route, navigation }: any) {
 
                 </View>
             </KeyboardAvoidingView>
+
+            <Modal
+                visible={isSourceModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsSourceModalVisible(false)}
+            >
+                <Pressable 
+                    style={styles.modalOverlay}
+                    onPress={() => setIsSourceModalVisible(false)}
+                >
+                    <Pressable 
+                        style={styles.modalContent}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Fotoğraf Kaynağı</Text>
+                            <Pressable onPress={() => setIsSourceModalVisible(false)}>
+                                <Ionicons name="close" size={24} color="#64748b" />
+                            </Pressable>
+                        </View>
+
+                        <TouchableOpacity 
+                            style={styles.sourceOption}
+                            onPress={takePhoto}
+                        >
+                            <View style={[styles.sourceIcon, { backgroundColor: "#fef3c7" }]}>
+                                <Ionicons name="camera" size={24} color="#d97706" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.sourceOptionTitle}>Fotoğraf Çek</Text>
+                                <Text style={styles.sourceOptionDesc}>Anında kamera ile fotoğraf çek</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                            style={styles.sourceOption}
+                            onPress={pickFromGallery}
+                        >
+                            <View style={[styles.sourceIcon, { backgroundColor: "#e0f2fe" }]}>
+                                <Ionicons name="images" size={24} color="#0284c7" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.sourceOptionTitle}>Galeriden Seç</Text>
+                                <Text style={styles.sourceOptionDesc}>Daha önceki fotoğraflardan birini seçin</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                        </TouchableOpacity>
+                    </Pressable>
+                </Pressable>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -144,5 +219,14 @@ const styles = StyleSheet.create({
     textInput: { backgroundColor: "#f8fafc", borderRadius: 16, padding: 16, fontSize: 15, color: "#0f172a", minHeight: 100, textAlignVertical: "top" },
 
     uploadButton: { flexDirection: "row", backgroundColor: "#2F7E8D", borderRadius: 16, paddingVertical: 18, alignItems: "center", justifyContent: "center", shadowColor: "#2F7E8D", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-    uploadButtonText: { color: "white", fontSize: 16, fontWeight: "800" }
+    uploadButtonText: { color: "white", fontSize: 16, fontWeight: "800" },
+
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+    modalContent: { backgroundColor: "#ffffff", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 40, maxHeight: "70%" },
+    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#e2e8f0" },
+    modalTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
+    sourceOption: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+    sourceIcon: { width: 48, height: 48, borderRadius: 16, justifyContent: "center", alignItems: "center", marginRight: 16 },
+    sourceOptionTitle: { fontSize: 16, fontWeight: "700", color: "#0f172a", marginBottom: 4 },
+    sourceOptionDesc: { fontSize: 13, color: "#64748b", fontWeight: "500" }
 });

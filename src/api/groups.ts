@@ -103,20 +103,17 @@ export async function updateLastSelectedGroup(
 
   return response.data;
 }
-export async function uploadGroupAvatar(fileUri: string): Promise<string> {
-  const formData = new FormData();
 
-  formData.append("file", {
-    uri: fileUri,
-    name: `group-avatar-${Date.now()}.jpg`,
-    type: "image/jpeg",
-  } as any);
-
-  const response = await api.post("/files/upload-group-avatar", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
+export async function convertImageToBase64(uri: string): Promise<string> {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      resolve(base64String);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
-
-  return response.data?.data?.url ?? response.data?.url;
 }

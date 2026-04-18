@@ -24,12 +24,35 @@ export const mapGoogleTypeToCategoryValue = (googleType?: string) => {
     cafe: "cafe",
     restaurant: "restaurant",
     food: "restaurant",
-    bakery: "dessert",       // Fırınları tatlıya bağladık
+    hamburger_restaurant: "restaurant",
+    pizza_restaurant: "restaurant",
+    fast_food: "restaurant",
+    chinese_restaurant: "restaurant",
+    indian_restaurant: "restaurant",
+    japanese_restaurant: "restaurant",
+    thai_restaurant: "restaurant",
+    mexican_restaurant: "restaurant",
+    seafood_restaurant: "restaurant",
+    steak_house: "restaurant",
+    sushi_restaurant: "restaurant",
+    ramen_restaurant: "restaurant",
+    korean_restaurant: "restaurant",
+    french_restaurant: "restaurant",
+    italian_restaurant: "restaurant",
+    spanish_restaurant: "restaurant",
+    vietnamese_restaurant: "restaurant",
+    turkish_restaurant: "restaurant",
+    middle_eastern_restaurant: "restaurant",
+    vegetarian_restaurant: "restaurant",
+    tapas_restaurant: "restaurant",
     meal_delivery: "restaurant",
+    banquet_hall: "restaurant",
+    bakery: "dessert",       // Fırınları tatlıya bağladık
     
     // Eğlence & Gece
     bar: "bar",
     night_club: "bar",
+    pub: "bar",
 
     // Konaklama
     lodging: "hotel",
@@ -68,8 +91,18 @@ export const mapGoogleTypeToCategoryValue = (googleType?: string) => {
     book_store: "study_place",
   };
 
-  // Eğer listede eşleşme bulursa senin 'value' değerini döner, bulamazsa "cafe" olarak işaretler
-  return typeMap[type] || "cafe";
+  // Eğer listede eşleşme bulursa senin 'value' değerini döner
+  if (typeMap[type]) {
+    return typeMap[type];
+  }
+
+  // Eğer "restaurant" kelimesi içeriyorsa restaurant kategorisine at
+  if (type.includes("restaurant")) {
+    return "restaurant";
+  }
+
+  // Aksi halde "cafe" olarak işaretle
+  return "cafe";
 };
 export const getPlaceCategoryLabel = (value?: string) => {
   const found = getPlaceCategoryByValue(value);
@@ -89,6 +122,6 @@ export const getPlaceCategoryItem = (category?: string) => {
   );
 };
 
-export const getPlaceCategoryImage = (category?: string) => {
+export const getPlaceCategoryImage = (category?: string ) => {
   return getPlaceCategoryItem(category)?.image;
 };

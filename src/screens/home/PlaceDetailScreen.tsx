@@ -77,7 +77,7 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
             const nowIso = new Date().toISOString();
             await markPlaceAsVisited(placeId, nowIso);
             await load();
-            Alert.alert("Success", "Place marked as visited.");
+            Alert.alert("Success", "Mekan ziyaret edildi olarak işaretlendi.");
         } catch (err) {
             Alert.alert("Error", getApiErrorMessage(err));
         } finally {
@@ -327,12 +327,12 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             <Text style={styles.actionBtnText} numberOfLines={1}>{currentUserReview ? "Yorumu Düzenle" : "Yorum Ekle"}</Text>
                         </TouchableOpacity>
 
-                        {status === "Wishlist" && (
+                        {status === 1 && (
                             <TouchableOpacity style={styles.actionBtn} onPress={onMarkAsVisited} disabled={markingVisited}>
                                 <View style={[styles.actionIconBox, { backgroundColor: "#dcfce7" }]}>
                                     {markingVisited ? <ActivityIndicator size="small" color="#16a34a" /> : <Ionicons name="checkmark-done" size={20} color="#16a34a" />}
                                 </View>
-                                <Text style={styles.actionBtnText} numberOfLines={1}>Mark Visited</Text>
+                                <Text style={styles.actionBtnText} numberOfLines={1}>Ziyaret Ettik</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -457,8 +457,10 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                         </View>
                         {!!visitDate && (
                             <View style={styles.infoRow}>
-                                <Ionicons name="flag-sharp" size={20} color="#16a34aba" style={styles.infoIcon} />
-                                <Text style={[styles.infoText, { color: "#16a34aba", fontWeight: "600" }]}>{formatDate(visitDate)} Tarihinde Ziyaret Edildi</Text>
+                                <Ionicons name="flag-sharp" size={20} color="#50ec8a73" style={styles.infoIcon} />
+                                <Text style={[styles.infoText, { color: "#50ec8a73", fontWeight: "600" }]}>
+                                    {formatDate(visitDate)} Tarihinde {status === 1 ? "Planlandı" : "Ziyaret Edildi"}
+                                </Text>                            
                             </View>
                         )}
                     </View>

@@ -4,28 +4,28 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import {
-    cancelGroupInvitation,
-    getGroupMembers,
-    getPendingGroupInvitations,
-    inviteGroupMember, // Eklenen API metodu
-    leaveGroup,
-    removeGroupMember,
-    updateGroup,
-    uploadGroupAvatar, // Eklenen API metodu
+  cancelGroupInvitation,
+  convertImageToBase64,
+  getGroupMembers,
+  getPendingGroupInvitations,
+  inviteGroupMember, // Eklenen API metodu
+  leaveGroup,
+  removeGroupMember,
+  updateGroup,
 } from "../../api/groups";
 import CustomAlert from "../../components/common/CustomAlert";
 import { useAuth } from "../../hooks/useAuth";
@@ -124,6 +124,7 @@ export default function GroupMembersScreen() {
   // Davet Form State'leri
   const [emailInput, setEmailInput] = useState("");
   const [isInviting, setIsInviting] = useState(false);
+  const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
 
   // Alert State
   const [alertState, setAlertState] = useState<AlertState>({
@@ -198,6 +199,38 @@ export default function GroupMembersScreen() {
 
   // -- AVATAR FONKSİYONLARI --
   const pickGroupPhoto = async () => {
+    setIsPhotoSourceModalVisible(true);
+  };
+
+  const takePhotoWithCamera = async () => {
+    setIsPhotoSourceModalVisible(false);
+    
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        showAlert({ title: "İzin Gerekli", message: "Fotoğraf çekebilmek için kamera izni vermen gerekiyor.", type: "info" });
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setPhotoUrl(result.assets[0].uri);
+        setIconKey(null);
+      }
+    } catch (error) {
+      showAlert({ title: "Hata", message: getApiErrorMessage(error), type: "danger" });
+    }
+  };
+
+  const pickPhotoFromGallery = async () => {
+    setIsPhotoSourceModalVisible(false);
+    
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -244,8 +277,13 @@ export default function GroupMembersScreen() {
       let finalPhotoUrl: string | null = null;
 
       const isLocalPhoto = !!photoUrl && (photoUrl.startsWith("file://") || photoUrl.startsWith("content://"));
+
       if (isLocalPhoto) {
-        finalPhotoUrl = await uploadGroupAvatar(photoUrl);
+        try {
+          finalPhotoUrl = await convertImageToBase64(photoUrl);
+        } catch (err) {
+          showAlert({ title: "Uyarı", message: "Fotoğraf işlenirken hata oluştu, grup renk ve ikon ile güncellenecek.", type: "info" });
+        }
       } else {
         finalPhotoUrl = photoUrl;
       }
@@ -259,7 +297,13 @@ export default function GroupMembersScreen() {
 
       showAlert({ title: "Başarılı", message: "Grup bilgileri başarıyla güncellendi.", type: "success" });
     } catch (error) {
-      showAlert({ title: "Hata", message: "Grup güncellenirken bir sorun oluştu.", type: "danger" });
+      const backendMessage = (error as any)?.response?.data?.message;
+      const errorMessageMap: { [key: string]: string } = {
+        "Only the group owner can update the group.": "Sadece grup sahibi grubu güncelleyebilir.",
+      };
+      
+      const errorMessage = backendMessage && errorMessageMap[backendMessage] ? errorMessageMap[backendMessage] : getApiErrorMessage(error);
+      showAlert({ title: "Hata", message: errorMessage, type: "danger" });
     } finally {
       setIsUpdating(false);
     }
@@ -628,6 +672,59 @@ export default function GroupMembersScreen() {
             </Pressable>
           </View>
         </View>
+      </Modal>
+
+      {/* FOTOĞRAF KAYNAGI SEÇİM MODALI */}
+      <Modal
+        visible={isPhotoSourceModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsPhotoSourceModalVisible(false)}
+      >
+        <Pressable 
+          style={styles.photoModalOverlay}
+          onPress={() => setIsPhotoSourceModalVisible(false)}
+        >
+          <Pressable 
+            style={styles.photoModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.photoModalHeader}>
+              <Text style={styles.photoModalTitle}>Fotoğraf Kaynağı</Text>
+              <Pressable onPress={() => setIsPhotoSourceModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </Pressable>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.photoSourceOption}
+              onPress={takePhotoWithCamera}
+            >
+              <View style={[styles.photoSourceIcon, { backgroundColor: "#fef3c7" }]}>
+                <Ionicons name="camera" size={24} color="#d97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.photoSourceOptionTitle}>Fotoğraf Çek</Text>
+                <Text style={styles.photoSourceOptionDesc}>Anında kamera ile fotoğraf çek</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.photoSourceOption}
+              onPress={pickPhotoFromGallery}
+            >
+              <View style={[styles.photoSourceIcon, { backgroundColor: "#e0f2fe" }]}>
+                <Ionicons name="images" size={24} color="#0284c7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.photoSourceOptionTitle}>Galeriden Seç</Text>
+                <Text style={styles.photoSourceOptionDesc}>Daha önceki fotoğraflardan birini seçin</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <CustomAlert
@@ -1110,5 +1207,58 @@ const styles = StyleSheet.create({
     color: "#334155",
     fontSize: 15,
     fontWeight: "700",
+  },
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  photoModalContent: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 40,
+    maxHeight: "70%",
+  },
+  photoModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  photoModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  photoSourceOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  photoSourceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  photoSourceOptionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  photoSourceOptionDesc: {
+    fontSize: 13,
+    color: "#64748b",
+    fontWeight: "500",
   },
 });

@@ -24,6 +24,10 @@ import {
 
 
 
+
+
+
+
     ImageBackground,
     Modal,
     Platform,
@@ -437,11 +441,7 @@ export default function GroupsScreen({ navigation }: any) {
                             </View>
                         </View>
 
-                        <View style={styles.header}>
-                            <Text style={styles.headerSubtitle}>
-                                Haritada görmek istediğiniz grubu seçin
-                            </Text>
-                        </View>
+                       
 
                         {loading && !refreshing ? (
                             <View style={styles.centerContainer}>

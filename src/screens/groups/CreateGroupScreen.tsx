@@ -3,17 +3,18 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useMemo, useState } from "react";
 import {
-    Image,
-    Modal,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Image,
+  Modal,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { createGroup, uploadGroupAvatar } from "../../api/groups";
+import { convertImageToBase64, createGroup, inviteGroupMember } from "../../api/groups";
 import AppButton from "../../components/common/AppButton";
 import CustomAlert from "../../components/common/CustomAlert";
 import { getApiErrorMessage } from "../../utils/helpers";
@@ -57,6 +58,11 @@ export default function CreateGroupScreen({ navigation }: any) {
   const [iconKey, setIconKey] = useState<GroupselectedIconsJson | null>("planet");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isIconModalVisible, setIsIconModalVisible] = useState(false);
+  const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
+
+  const [emailInput, setEmailInput] = useState("");
+  const [invitedEmails, setInvitedEmails] = useState<string[]>([]);
+  const [isInviting, setIsInviting] = useState(false);
 
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertTitle, setAlertTitle] = useState("");
@@ -83,6 +89,43 @@ export default function CreateGroupScreen({ navigation }: any) {
   };
 
   const pickGroupPhoto = async () => {
+    setIsPhotoSourceModalVisible(true);
+  };
+
+  const takePhotoWithCamera = async () => {
+    setIsPhotoSourceModalVisible(false);
+    
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+        showAlert(
+          "İzin Gerekli",
+          "Fotoğraf çekebilmek için kamera izni vermen gerekiyor.",
+          "info"
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setPhotoUrl(result.assets[0].uri);
+        setIconKey(null);
+      }
+    } catch (error) {
+      showAlert("Hata", getApiErrorMessage(error), "danger");
+    }
+  };
+
+  const pickPhotoFromGallery = async () => {
+    setIsPhotoSourceModalVisible(false);
+    
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -102,18 +145,10 @@ export default function CreateGroupScreen({ navigation }: any) {
         quality: 0.8,
       });
 
-      if (result.canceled) {
-        return;
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setPhotoUrl(result.assets[0].uri);
+        setIconKey(null);
       }
-
-      const asset = result.assets?.[0];
-      if (!asset?.uri) {
-        showAlert("Hata", "Fotoğraf seçilemedi.", "danger");
-        return;
-      }
-
-      setPhotoUrl(asset.uri);
-      setIconKey(null);
     } catch (error) {
       showAlert("Hata", getApiErrorMessage(error), "danger");
     }
@@ -134,6 +169,32 @@ export default function CreateGroupScreen({ navigation }: any) {
     setIconKey("planet");
   };
 
+  const handleAddEmail = () => {
+    const email = emailInput.trim().toLowerCase();
+    
+    if (!email) {
+      showAlert("Hata", "Lütfen bir e-posta adresi gir.", "danger");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showAlert("Hata", "Geçerli bir e-posta adresi gir.", "danger");
+      return;
+    }
+
+    if (invitedEmails.includes(email)) {
+      showAlert("Hata", "Bu e-posta zaten eklenmiş.", "danger");
+      return;
+    }
+
+    setInvitedEmails([...invitedEmails, email]);
+    setEmailInput("");
+  };
+
+  const handleRemoveEmail = (email: string) => {
+    setInvitedEmails(invitedEmails.filter(e => e !== email));
+  };
+
   const onCreate = async () => {
     if (!name.trim()) {
       showAlert("Eksik Bilgi", "Lütfen grup adını gir.", "info");
@@ -150,19 +211,36 @@ export default function CreateGroupScreen({ navigation }: any) {
         (photoUrl.startsWith("file://") || photoUrl.startsWith("content://"));
 
       if (isLocalPhoto) {
-        finalPhotoUrl = await uploadGroupAvatar(photoUrl);
+        try {
+          finalPhotoUrl = await convertImageToBase64(photoUrl);
+        } catch (err) {
+          showAlert("Uyarı", "Fotoğraf işlenirken hata oluştu.", "info");
+        }
       } else if (photoUrl) {
         finalPhotoUrl = photoUrl;
       }
 
-      await createGroup({
+      const groupResponse = await createGroup({
         name: name.trim(),
         colorcode: colorCode,
         photoUrl: finalPhotoUrl,
         selectedIconsJson: finalPhotoUrl ? null : iconKey,
       });
 
-      showAlert("Başarılı", "Grup başarıyla oluşturuldu.", "success");
+      // Grup oluşturulduktan sonra, davet emaillerine davet gönder
+      if (invitedEmails.length > 0 && groupResponse?.id) {
+        const createdGroupId = groupResponse.id;
+        
+        for (const email of invitedEmails) {
+          try {
+            await inviteGroupMember(createdGroupId, email);
+          } catch (err) {
+            console.warn(`"${email}" için davet gönderilemedi:`, err);
+          }
+        }
+      }
+
+      showAlert("Başarılı", `Grup oluşturuldu${invitedEmails.length > 0 ? ` ve ${invitedEmails.length} davet gönderildi.` : "."}`, "success");
 
       setTimeout(() => {
         setAlertVisible(false);
@@ -285,6 +363,50 @@ export default function CreateGroupScreen({ navigation }: any) {
           )}
         </View>
 
+        {/* 4. KART: ÜYELER DAVET ET (Opsiyonel) */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="mail-outline" size={20} color="#64748b" />
+            <Text style={styles.sectionTitle}>Üyeleri Davet Et </Text>
+          </View>
+
+          <Text style={styles.inviteDescription}>
+            Arkadaşlarını e-posta ile davet et.
+          </Text>
+
+          <View style={styles.inviteInputRow}>
+            <TextInput
+              style={[styles.customInput, { flex: 1, marginRight: 12 }]}
+              value={emailInput}
+              onChangeText={setEmailInput}
+              placeholder="E-posta adresini gir..."
+              placeholderTextColor="#94a3b8"
+              keyboardType="email-address"
+              selectionColor="#102a43"
+            />
+            <Pressable 
+              onPress={handleAddEmail}
+              style={[styles.inviteButton, !emailInput && { opacity: 0.5 }]}
+              disabled={!emailInput}
+            >
+              <Ionicons name="add" size={20} color="#ffffff" />
+            </Pressable>
+          </View>
+
+          {invitedEmails.length > 0 && (
+            <View style={styles.invitedEmailsList}>
+              {invitedEmails.map((email, index) => (
+                <View key={index} style={styles.emailChip}>
+                  <Text style={styles.emailChipText}>{email}</Text>
+                  <Pressable onPress={() => handleRemoveEmail(email)}>
+                    <Ionicons name="close" size={16} color="#ef4444" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         <View style={styles.submitButtonContainer}>
           <AppButton title="Grubu Oluştur" onPress={onCreate} loading={loading} />
         </View>
@@ -349,6 +471,59 @@ export default function CreateGroupScreen({ navigation }: any) {
             </Pressable>
           </View>
         </View>
+      </Modal>
+
+      {/* FOTOĞRAF KAYNAGI SEÇİM MODALI */}
+      <Modal
+        visible={isPhotoSourceModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsPhotoSourceModalVisible(false)}
+      >
+        <Pressable 
+          style={styles.photoModalOverlay}
+          onPress={() => setIsPhotoSourceModalVisible(false)}
+        >
+          <Pressable 
+            style={styles.photoModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.photoModalHeader}>
+              <Text style={styles.photoModalTitle}>Fotoğraf Kaynağı</Text>
+              <Pressable onPress={() => setIsPhotoSourceModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </Pressable>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.photoSourceOption}
+              onPress={takePhotoWithCamera}
+            >
+              <View style={[styles.photoSourceIcon, { backgroundColor: "#fef3c7" }]}>
+                <Ionicons name="camera" size={24} color="#d97706" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.photoSourceOptionTitle}>Fotoğraf Çek</Text>
+                <Text style={styles.photoSourceOptionDesc}>Anında kamera ile fotoğraf çek</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.photoSourceOption}
+              onPress={pickPhotoFromGallery}
+            >
+              <View style={[styles.photoSourceIcon, { backgroundColor: "#e0f2fe" }]}>
+                <Ionicons name="images" size={24} color="#0284c7" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.photoSourceOptionTitle}>Galeriden Seç</Text>
+                <Text style={styles.photoSourceOptionDesc}>Daha önceki fotoğraflardan birini seçin</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <CustomAlert
@@ -530,6 +705,52 @@ const styles = StyleSheet.create({
   submitButtonContainer: {
     marginTop: 10,
   },
+  inviteDescription: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  inviteInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  inviteButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#2F7E8D",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2F7E8D",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  invitedEmailsList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  emailChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#EAF2F5",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#BDD9E2",
+  },
+  emailChipText: {
+    fontSize: 13,
+    color: "#0F172A",
+    fontWeight: "600",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.5)",
@@ -600,5 +821,58 @@ const styles = StyleSheet.create({
     color: "#334155",
     fontSize: 15,
     fontWeight: "700",
+  },
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  photoModalContent: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 40,
+    maxHeight: "70%",
+  },
+  photoModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  photoModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  photoSourceOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  photoSourceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  photoSourceOptionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  photoSourceOptionDesc: {
+    fontSize: 13,
+    color: "#64748b",
+    fontWeight: "500",
   },
 });

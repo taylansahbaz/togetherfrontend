@@ -1,23 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Alert,
-    Image,
-    ImageBackground,
-    Pressable,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ImageBackground,
+  Modal,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { PLACE_CATEGORIES } from "@/src/utils/constants";
 import { api } from "../../api/client";
+import { getMyGroups } from "../../api/groups";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
+import { Group } from "../../types/group";
 import { Place } from "../../types/place";
 import { getApiErrorMessage } from "../../utils/helpers";
 import { getPlaceCategoryImage, getPlaceCategoryLabel } from "../../utils/placeCategories";
@@ -174,8 +178,8 @@ const WishlistCard = ({
 const categoryItem = PLACE_CATEGORIES.find(
   (item) => item.value === place.category
 );  
-const categoryImage = getPlaceCategoryImage(place.category);
-const categoryLabel = getPlaceCategoryLabel(place.category);
+const categoryImage = getPlaceCategoryImage(place.category ?? "");
+const categoryLabel = getPlaceCategoryLabel(place.category ?? "");
   const visitDate = formatVisitDate((place as any).visitDate);
 
   return (
@@ -205,20 +209,21 @@ const categoryLabel = getPlaceCategoryLabel(place.category);
         <View style={{ flexDirection: "row", flex: 1, marginRight: 12 }}>
         <View
           style={{
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             borderRadius: 21,
             backgroundColor: "rgba(255,255,255,0.58)",
             justifyContent: "center",
             alignItems: "center",
             marginRight: 12,
+            bottom: 8,
           }}
         >
           {categoryImage ? (
             <Image
               source={categoryImage}
               resizeMode="contain"
-              style={{ width: 22, height: 22 }}
+              style={{ width: 27, height: 27 }}
             />
           ) : (
             <Ionicons
@@ -229,61 +234,10 @@ const categoryLabel = getPlaceCategoryLabel(place.category);
           )}
         </View>
 
-          <View style={{ flex: 1 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                flexWrap: "wrap",
-                marginBottom: 6,
-              }}
-            >
-              {!!place.city && (
-                <View
-                  style={{
-                    backgroundColor: colors.softMuted,
-                    paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 999,
-                    marginRight: 8,
-                    marginBottom: 4,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: "#fff",
-                      fontSize: 10,
-                      fontWeight: "800",
-                    }}
-                  >
-                    {place.city.toUpperCase()}
-                  </Text>
-                </View>
-              )}
-
-              <View
-                style={{
-                  backgroundColor: "rgba(255,255,255,0.46)",
-                  paddingHorizontal: 9,
-                  paddingVertical: 4,
-                  borderRadius: 999,
-                  marginBottom: 4,
-                }}
-              >
-                <Text
-                  style={{
-                    color: "#7A4F60",
-                    fontSize: 10,
-                    fontWeight: "800",
-                  }}
-                >
-                {place.createdByName ? place.createdByName.charAt(0).toUpperCase() + place.createdByName.slice(1) : "you"} Ekledi</Text>
-              </View>
-            </View>
-
+          <View style={{ flex: 1,marginTop: 3, }}>
             <Text
               style={{
-                fontSize: 17,
+                fontSize: 16,
                 fontWeight: "900",
                 color: colors.text,
               }}
@@ -296,44 +250,47 @@ const categoryLabel = getPlaceCategoryLabel(place.category);
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                flexWrap: "wrap",
-                marginTop: 8,
+                marginTop: 15,
+                marginLeft: -36,
               }}
             >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginRight: 12,
-                  marginBottom: 6,
-                }}
-              >
-                <Ionicons
-                  name="bookmark-outline"
-                  size={13}
-                  color={colors.muted}
-                />
-                <Text
+              {!!place.city && (
+                <View
                   style={{
-                    fontSize: 12,
-                    color: colors.muted,
-                    marginLeft: 5,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginRight: 12,
+                    marginBottom: 6,
                   }}
                 >
-                  {categoryLabel}
-                </Text>
-              </View>
+                  <Ionicons
+                    name="location-sharp"
+                    size={13}
+                    color={colors.muted}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.muted,
+                      marginLeft: 5,
+                    }}
+                  >
+                    {place.city}
+                  </Text>
+                </View>
+              )}
 
               {!!visitDate && (
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
+                    marginRight: 12,
                     marginBottom: 6,
                   }}
                 >
                   <Ionicons
-                    name="calendar-outline"
+                    name="calendar-sharp"
                     size={13}
                     color={colors.muted}
                   />
@@ -348,6 +305,31 @@ const categoryLabel = getPlaceCategoryLabel(place.category);
                   </Text>
                 </View>
               )}
+
+              {place.createdByName && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Ionicons
+                    name="person-sharp"
+                    size={13}
+                    color={colors.muted}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.muted,
+                      marginLeft: 5,
+                    }}
+                  >
+                    {place.createdByName.charAt(0).toUpperCase() + place.createdByName.slice(1)} ekledi
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -356,14 +338,15 @@ const categoryLabel = getPlaceCategoryLabel(place.category);
           onPress={onMarkAsVisited}
           activeOpacity={0.8}
           style={{
-            width: 46,
-            height: 46,
-            borderRadius: 16,
+            width: 37,
+            height: 37,
+            borderRadius: 14,
             backgroundColor: colors.primarySoft,
             borderWidth: 1.2,
             borderColor: colors.primary,
             justifyContent: "center",
             alignItems: "center",
+            marginTop: -8,
           }}
         >
           <Ionicons name="checkmark-done" size={20} color={colors.primary} />
@@ -373,11 +356,14 @@ const categoryLabel = getPlaceCategoryLabel(place.category);
   );
 };
 export default function WishlistScreen({ navigation }: any) {
-  const { selectedGroupId , selectedGroup} = useSelectedGroup();
+  const { user } = useAuth();
+  const { selectedGroupId, selectedGroup, setSelectedGroup, initializeSelectedGroup } = useSelectedGroup();
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate] = useState<string>(todayStr);
@@ -416,6 +402,26 @@ export default function WishlistScreen({ navigation }: any) {
     }, [selectedGroupId])
   );
 
+  // Load groups when component mounts
+  useEffect(() => {
+    const loadGroups = async () => {
+      if (!user?.id) return;
+      try {
+        const response = await getMyGroups();
+        const { groups: fetchedGroups, lastSelectedGroupId: backendLastSelectedGroupId } = response.data;
+        setGroups(fetchedGroups);
+        // Initialize selected group if not already initialized
+        if (!selectedGroup && fetchedGroups.length > 0) {
+          const groupIdToSelect = user.lastSelectedGroupId ?? backendLastSelectedGroupId;
+          await initializeSelectedGroup(fetchedGroups, groupIdToSelect);
+        }
+      } catch (error) {
+        console.log("Failed to load groups:", error);
+      }
+    };
+    loadGroups();
+  }, [user?.id]);
+
   const handleMarkAsVisited = (placeId: string) => {
     Alert.alert(
       "Buraya gittiniz mi?",
@@ -439,7 +445,7 @@ export default function WishlistScreen({ navigation }: any) {
 
   const groupedData = useMemo(() => {
     return places.reduce((acc: any, place) => {
-      const cat = place.category || "General Plans";
+      const cat = getPlaceCategoryLabel(place.category ?? "") || "General Plans";
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(place);
       return acc;
@@ -495,8 +501,8 @@ export default function WishlistScreen({ navigation }: any) {
                     position: "absolute",
                     top: -24,
                     right: -8,
-                    width: 120,
-                    height: 120,
+                    width: 100,
+                    height: 100,
                     borderRadius: 60,
                     backgroundColor: "rgba(47,126,141,0.10)",
                   }}
@@ -504,7 +510,7 @@ export default function WishlistScreen({ navigation }: any) {
                 <View
                   style={{
                     position: "absolute",
-                    bottom: -24,
+                    bottom: -26,
                     left: -10,
                     width: 100,
                     height: 100,
@@ -523,28 +529,26 @@ export default function WishlistScreen({ navigation }: any) {
                   <View style={{ flex: 1, paddingRight: 12 }}>
                    <Text
                     style={{
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: "900",
                         color: colors.softMuted,
                         letterSpacing: 0.4,
                     }}
                     >
                     {selectedGroup?.name
-                        ? `${selectedGroup.name} ile planların`
-                        : "Upcoming Adventures"}
+                        ? `${selectedGroup.name} ile Planların`
+                        : "Yakındaki Planların"}
                     </Text>
 
                     <Text
                       style={{
                         marginTop: 6,
-                        fontSize: 13,
+                        fontSize: 15,
                         lineHeight: 19,
                         color: colors.muted,
                       }}
                     >
-                      {selectedGroup?.name
-                        ? "Gitmek istediginiz yerleri görebilirsiniz."
-                        : "Sonraki güzel anılar için kaydedilmiş yerleriniz."}
+                         Güzel anılar için kaydettikleriniz.
                     </Text>
                   </View>
 
@@ -553,6 +557,7 @@ export default function WishlistScreen({ navigation }: any) {
                       width: 50,
                       height: 50,
                       borderRadius: 25,
+                      bottom: 10,
                       backgroundColor: "rgba(47,126,141,0.12)",
                       justifyContent: "center",
                       alignItems: "center",
@@ -571,18 +576,46 @@ export default function WishlistScreen({ navigation }: any) {
                     flexDirection: "row",
                     flexWrap: "wrap",
                     marginTop: 14,
+                    marginBottom: -20,
                   }}
                 >
                   <HeroChip
-                    text={`${places.length} Plans`}
+                    text={`${places.length} Plan`}
                     bg={colors.primarySoft}
                     color={colors.primary}
                   />
                   <HeroChip
-                    text={`${cityCount} Cities`}
+                    text={`${cityCount} Şehir`}
                     bg={colors.pinkChip}
                     color={colors.pinkChipText}
                   />
+                  <Pressable
+                    onPress={() => setIsGroupModalVisible(true)}
+                    style={{
+                      backgroundColor: "rgba(79, 172, 254, 0.15)",
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      marginRight: 8,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: "rgba(47, 126, 141, 0.3)",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Ionicons name="people" size={12} color={colors.primary} />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: colors.primary,
+                      }}
+                    >
+                      {selectedGroup?.name || "Grup Seç"}
+                    </Text>
+                  </Pressable>
                 </View>
               </View>
 
@@ -601,7 +634,7 @@ export default function WishlistScreen({ navigation }: any) {
                   <View
                     key={cat}
                     style={{
-                      marginBottom: 22,
+                      marginBottom: 12,
                       padding: 18,
                       borderRadius: 28,
                       backgroundColor: colors.glassCard,
@@ -665,7 +698,7 @@ export default function WishlistScreen({ navigation }: any) {
                             color: colors.primary,
                           }}
                         >
-                          {groupedData[cat].length} places
+                          {groupedData[cat].length} Mekan
                         </Text>
                       </View>
                     </View>
@@ -716,6 +749,131 @@ export default function WishlistScreen({ navigation }: any) {
             >
               <Ionicons name="add" size={34} color="white" />
             </TouchableOpacity>
+
+            {/* Grup Seçim Modal */}
+            <Modal
+              visible={isGroupModalVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setIsGroupModalVisible(false)}
+            >
+              <Pressable
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  justifyContent: "flex-end",
+                }}
+                onPress={() => setIsGroupModalVisible(false)}
+              >
+                <Pressable
+                  style={{
+                    backgroundColor: colors.white,
+                    borderTopLeftRadius: 28,
+                    borderTopRightRadius: 28,
+                    paddingBottom: 32,
+                    maxHeight: "75%",
+                  }}
+                  onPress={(e) => e.stopPropagation()}
+                >
+                  <View
+                    style={{
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.glassBorder,
+                      paddingHorizontal: 20,
+                      paddingVertical: 16,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "900",
+                        color: colors.text,
+                      }}
+                    >
+                      Gruplarım
+                    </Text>
+                    <Pressable onPress={() => setIsGroupModalVisible(false)}>
+                      <Ionicons name="close" size={24} color={colors.muted} />
+                    </Pressable>
+                  </View>
+
+                  <ScrollView
+                    style={{ paddingHorizontal: 20 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {groups.map((group) => (
+                      <Pressable
+                        key={group.id}
+                        onPress={async () => {
+                          await setSelectedGroup(group);
+                          setIsGroupModalVisible(false);
+                        }}
+                        style={{
+                          marginVertical: 8,
+                          paddingVertical: 14,
+                          paddingHorizontal: 12,
+                          borderRadius: 20,
+                          backgroundColor: group.colorCode ? `${group.colorCode}20` : colors.primarySoft,
+                          borderWidth: 2,
+                          borderColor: group.colorCode || colors.primary,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                          <View
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              backgroundColor: group.colorCode || colors.primary,
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginRight: 12,
+                            }}
+                          >
+                            <Ionicons
+                              name={group.selectedIconsJson || "people"}
+                              size={20}
+                              color="white"
+                            />
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "800",
+                              color: colors.text,
+                            }}
+                          >
+                            {group.name}
+                          </Text>
+                        </View>
+
+                        {selectedGroupId === group.id && (
+                          <View
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              backgroundColor: group.colorCode || colors.primary,
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginLeft: 12,
+                            }}
+                          >
+                            <Ionicons name="checkmark" size={18} color="white" />
+                          </View>
+                        )}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </Pressable>
+              </Pressable>
+            </Modal>
           </SafeAreaView>
         </View>
       </ImageBackground>

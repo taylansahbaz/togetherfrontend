@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    KeyboardAvoidingView, Platform,
+    KeyboardAvoidingView,
+    Platform,
     SafeAreaView,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -16,6 +18,7 @@ import { getApiErrorMessage } from "../../utils/helpers";
 
 export default function EditReviewScreen({ route, navigation }: any) {
     const { placeId, review } = route.params ?? {};
+    const scrollViewRef = useRef<ScrollView>(null);
     
     // YENİ: Artık direkt 10 üzerinden (1-10) puanı tutuyoruz. 
     // Eğer önceden verilmiş puan yoksa 0'dan başlar.
@@ -88,8 +91,21 @@ export default function EditReviewScreen({ route, navigation }: any) {
                 <View style={{ width: 40 }} />
             </View>
 
-            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-                <View style={styles.content}>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === "ios" ? "padding" : "height"} 
+                keyboardVerticalOffset={Platform.OS === "ios" ? 30 : 0}
+                style={{ flex: 1 }}
+            >
+                <ScrollView 
+                    ref={scrollViewRef}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    scrollEnabled={true}
+                    nestedScrollEnabled={true}
+                >
+                    <View style={styles.content}>
                     
                     {/* YENİ: YARIM YILDIZ DESTEKLİ PUANLAMA */}
                     <View style={styles.card}>
@@ -160,7 +176,7 @@ export default function EditReviewScreen({ route, navigation }: any) {
                     </View>
 
                     {/* YORUM ALANI */}
-                    <View style={[styles.card, { flex: 1 }]}>
+                    <View style={styles.card}>
                         <Text style={styles.sectionTitle}>Deneyiminizi Anlatın</Text>
                         <TextInput
                             style={styles.textArea}
@@ -170,6 +186,11 @@ export default function EditReviewScreen({ route, navigation }: any) {
                             value={comment}
                             onChangeText={setComment}
                             textAlignVertical="top"
+                            onFocus={() => {
+                                setTimeout(() => {
+                                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                                }, 100);
+                            }}
                         />
                     </View>
 
@@ -189,7 +210,8 @@ export default function EditReviewScreen({ route, navigation }: any) {
                         </TouchableOpacity>
                     )}
                     
-                </View>
+                    </View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
@@ -200,7 +222,8 @@ const styles = StyleSheet.create({
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20 },
     backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#e2e8f0", justifyContent: "center", alignItems: "center" },
     headerTitle: { fontSize: 18, fontWeight: "800", color: "#102a43" },
-    content: { flex: 1, paddingHorizontal: 20, paddingBottom: 30 },
+    scrollContent: { paddingBottom: 60, paddingTop: 10 },
+    content: { paddingHorizontal: 20, paddingTop: 10 },
     
     card: { backgroundColor: "white", borderRadius: 20, padding: 20, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
     sectionTitle: { fontSize: 15, fontWeight: "800", color: "#102a43", marginBottom: 16, textAlign: "center" },
@@ -214,7 +237,7 @@ const styles = StyleSheet.create({
     segmentActiveNo: { backgroundColor: "#ef4444", shadowColor: "#ef4444", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
     segmentText: { fontSize: 15, fontWeight: "700", color: "#64748b" },
 
-    textArea: { flex: 1, backgroundColor: "#f8fafc", borderRadius: 16, padding: 16, fontSize: 15, color: "#0f172a", minHeight: 120 },
+    textArea: { backgroundColor: "#f8fafc", borderRadius: 16, padding: 16, fontSize: 15, color: "#0f172a", height: 160 },
     
     saveButton: { backgroundColor: "#2F7E8D", borderRadius: 16, paddingVertical: 18, alignItems: "center", shadowColor: "#2F7E8D", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
     saveButtonText: { color: "white", fontSize: 16, fontWeight: "800" },
