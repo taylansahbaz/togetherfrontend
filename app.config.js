@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "Lets Together",
     slug: "lets-together",
-    version: "1.0.11",
+    version: "1.0.13",
     orientation: "portrait",
     icon: "./assets/images/applogo.png",
     scheme: "lets-together",
@@ -13,17 +13,19 @@ export default {
 
     ios: {
       supportsTablet: true,
-      buildNumber: "1.0.11",
+      buildNumber: "1.0.13",
       bundleIdentifier: "com.taylansahbaz.letstogether",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        LSApplicationQueriesSchemes: ["comgooglemaps", "waze"]
+        LSApplicationQueriesSchemes: ["comgooglemaps", "waze"],
+        NSPhotoLibraryAddUsageDescription:
+          "Fotoğrafları galerinize kaydetmek için izin gerekir.",
       },
     },
 
     android: {
       package: "com.taylansahbaz.letstogether",
-      versionCode: 11,
+      versionCode: 13,
       config: {
         googleMaps: {
           apiKey: "AIzaSyCk0XzUBX1U2R7neSR2sJ0TI1TdjcOdx8U",
@@ -53,6 +55,25 @@ export default {
         },
       ],
       "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/images/applogo.png",
+          color: "#2F7E8D",
+          defaultChannel: "default",
+          sounds: [],
+        },
+      ],
+      [
+        "expo-media-library",
+        {
+          photosPermission:
+            "Uygulamanın fotoğraflarınıza erişmesine izin verin.",
+          savePhotosPermission:
+            "Uygulamanın fotoğrafları cihazınıza kaydetmesine izin verin.",
+          isAccessMediaLocationEnabled: false,
+        },
+      ],
     ],
 
     experiments: {

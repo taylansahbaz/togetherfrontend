@@ -1,19 +1,26 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import GroupsScreen from '../screens/groups/GroupListScreen'; // Grupları buraya import et
+import BillSplitScreen from '../screens/bill/BillSplitScreen';
+import MyBillsScreen from '../screens/bill/MyBillsScreen';
+import GroupsScreen from '../screens/groups/GroupListScreen';
 import GroupMembersScreen from '../screens/groups/GroupMembersScreen';
+import PrivacyPolicyScreen from '../screens/profile/PrivacyPolicyScreen';
+import PrivacySettingsScreen from '../screens/profile/PrivacySettingsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import TermsOfServiceScreen from '../screens/profile/TermsOfServiceScreen';
 
-// Profil sekmesinin içi için mini bir yığın oluşturuyoruz
 const ProfileStack = createNativeStackNavigator();
 
 export function ProfileStackNavigator() {
     return (
         <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
-            {/* Profil sekmesine tıklandığında ilk açılacak sayfa */}
             <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
             <ProfileStack.Screen name="GroupMembers" component={GroupMembersScreen} />
-            {/* Profilin içinden gidilebilecek diğer sayfalar (Alt menü burada KAYBOLMAZ!) */}
             <ProfileStack.Screen name="Groups" component={GroupsScreen} />
+            <ProfileStack.Screen name="MyBills" component={MyBillsScreen} />
+            <ProfileStack.Screen name="BillSplit" component={BillSplitScreen} />
+            <ProfileStack.Screen name="PrivacySettings" component={PrivacySettingsScreen} />
+            <ProfileStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <ProfileStack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
         </ProfileStack.Navigator>
     );
 }

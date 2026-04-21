@@ -2,6 +2,7 @@ import React, { createContext, useEffect, useMemo, useState } from "react";
 import { appleLogin, getMe, googleLogin, login as loginApi, register as registerApi } from "../api/auth";
 import { api } from "../api/client";
 import { LoginRequest, RegisterRequest, User } from "../types/auth";
+import { globalEvents } from "../utils/globalEvents";
 import { storage } from "../utils/storage";
 
 interface AuthContextType {
@@ -124,6 +125,15 @@ const authenticateWithToken = async (newToken: string) => {
 
     useEffect(() => {
         bootstrap();
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = globalEvents.onUnauthorized(() => {
+            setToken(null);
+            setUser(null);
+            delete api.defaults.headers.common["Authorization"];
+        });
+        return unsubscribe;
     }, []);
 
     const value = useMemo(

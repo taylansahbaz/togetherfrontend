@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
+import BillSplitScreen from "../screens/bill/BillSplitScreen";
 import GroupMembersScreen from "../screens/groups/GroupMembersScreen";
 import CreatePlaceScreen from "../screens/home/CreatePlaceScreen";
 import EditReviewScreen from "../screens/home/EditReviewScreen";
@@ -14,7 +15,7 @@ export default function HomeStackNavigator() {
         <Stack.Navigator>
      
             <Stack.Screen 
-                name="Gecmis" 
+                name="Anılar" 
                 component={HomeScreen} 
                 options={{ headerShown: false }} 
             />
@@ -23,6 +24,7 @@ export default function HomeStackNavigator() {
             <Stack.Screen name="EditReview" component={EditReviewScreen} options={{  headerShown: false }} />
             <Stack.Screen name="UploadPhoto" component={UploadPhotoScreen} options={{  headerShown: false}} />
             <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="BillSplit" component={BillSplitScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
     );
 }

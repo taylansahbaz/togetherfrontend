@@ -1,4 +1,6 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import React, { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
     Image,
     ImageBackground,
@@ -14,70 +16,59 @@ import {
 import { resetPassword } from "../../api/auth";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
-import CustomAlert from "../../components/common/CustomAlert";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import { useAlert } from "../../context/AlertContext";
 import { getApiErrorMessage } from "../../utils/helpers";
+import {
+    ResetPasswordFormData,
+    resetPasswordSchema,
+} from "../../utils/validationSchemas";
 
 export default function ResetPasswordScreen({ navigation, route }: any) {
   const { height, width } = useWindowDimensions();
   const email = route?.params?.email ?? "";
+  const { showAlert } = useAlert();
 
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [successVisible, setSuccessVisible] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ResetPasswordFormData>({
+    resolver: zodResolver(resetPasswordSchema),
+    mode: "onTouched",
+    defaultValues: { code: "", password: "", confirmPassword: "" },
+  });
 
-  const validate = () => {
+  const [submitError, setSubmitError] = useState("");
+
+  const onResetPassword = handleSubmit(async (values) => {
     if (!email.trim()) {
-      setError("E-posta eksik.");
-      return false;
+      setSubmitError("E-posta eksik.");
+      return;
     }
-
-    if (!code.trim()) {
-      setError("Sıfırlama kodu boş bırakılamaz.");
-      return false;
-    }
-
-    if (!newPassword) {
-      setError("Yeni şifre boş bırakılamaz.");
-      return false;
-    }
-
-    if (newPassword.length < 6) {
-      setError("Şifre en az 6 karakter olmalıdır.");
-      return false;
-    }
-
-    if (!confirmPassword) {
-      setError("Lütfen şifrenizi onaylayınız.");
-      return false;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError("Şifreler eşleşmiyor.");
-      return false;
-    }
-
-    return true;
-  };
-
-  const onResetPassword = async () => {
-    if (!validate()) return;
 
     try {
-      setError("");
-      setLoading(true);
+      setSubmitError("");
+      await resetPassword(email.trim(), values.code.trim(), values.password);
 
-      await resetPassword(email.trim(), code.trim(), newPassword);
-      setSuccessVisible(true);
+      showAlert({
+        title: "Başarılı",
+        message: "Şifreniz başarıyla değiştirildi.",
+        type: "success",
+        confirmText: "Giriş Yap",
+        onConfirm: () => navigation.navigate("Login"),
+      });
     } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
+      setSubmitError(getApiErrorMessage(err));
     }
-  };
+  });
+
+  const firstFieldError =
+    errors.code?.message ||
+    errors.password?.message ||
+    errors.confirmPassword?.message ||
+    "";
+  const combinedError = submitError || firstFieldError;
 
   return (
     <View style={{ flex: 1, width, height }}>
@@ -152,39 +143,58 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
                     E-postanıza gelen kodu girin ve yeni şifrenizi oluşturun.
                   </Text>
 
-                  <ErrorMessage message={error} />
+                  <ErrorMessage message={combinedError} />
 
                   <View style={{ width: "100%" }}>
-
-                    <AppInput
-                      label="Code"
-                      value={code}
-                      onChangeText={setCode}
-                      placeholder="6 Haneli Kod"
-                      keyboardType="numeric"
+                    <Controller
+                      control={control}
+                      name="code"
+                      render={({ field: { onChange, value } }) => (
+                        <AppInput
+                          label="Code"
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="6 Haneli Kod"
+                          keyboardType="numeric"
+                        />
+                      )}
                     />
 
-                    <AppInput
-                      label="Yeni Şifre"
-                      value={newPassword}
-                      onChangeText={setNewPassword}
-                      secureTextEntry
-                      placeholder="Yeni Şifre"
+                    <Controller
+                      control={control}
+                      name="password"
+                      render={({ field: { onChange, value } }) => (
+                        <AppInput
+                          label="Yeni Şifre"
+                          value={value}
+                          onChangeText={onChange}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          placeholder="Yeni Şifre"
+                        />
+                      )}
                     />
 
-                    <AppInput
-                      label="Şifre Doğrula"
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry
-                      placeholder="Şifre Doğrula"
+                    <Controller
+                      control={control}
+                      name="confirmPassword"
+                      render={({ field: { onChange, value } }) => (
+                        <AppInput
+                          label="Şifre Doğrula"
+                          value={value}
+                          onChangeText={onChange}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          placeholder="Şifre Doğrula"
+                        />
+                      )}
                     />
 
                     <View style={{ marginTop: 12 }}>
                       <AppButton
                         title="Şifreyi Güncelle"
                         onPress={onResetPassword}
-                        loading={loading}
+                        loading={isSubmitting}
                       />
                     </View>
 
@@ -217,19 +227,6 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
             </KeyboardAvoidingView>
           </SafeAreaView>
         </View>
-
-        <CustomAlert
-          visible={successVisible}
-          title="Başarılı"
-          message="Şifreniz başarıyla değiştirildi."
-          type="success"
-          confirmText="Giriş Yap"
-          showCancelButton={false}
-          onConfirm={() => {
-            setSuccessVisible(false);
-            navigation.navigate("Login");
-          }}
-        />
       </ImageBackground>
     </View>
   );

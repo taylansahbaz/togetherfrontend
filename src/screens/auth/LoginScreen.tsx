@@ -1,6 +1,7 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import React, { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-  Alert,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -16,82 +17,73 @@ import { resendVerification } from "../../api/auth";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import { useAlert } from "../../context/AlertContext";
 import { useAuth } from "../../hooks/useAuth";
 import { getApiErrorMessage } from "../../utils/helpers";
+import { LoginFormData, loginSchema } from "../../utils/validationSchemas";
 
 export default function LoginScreen({ navigation }: any) {
   const { login } = useAuth();
+  const { showAlert } = useAlert();
 
   const { height, width } = useWindowDimensions();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    mode: "onTouched",
+    defaultValues: { email: "", password: "" },
+  });
+
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  const validate = () => {
-    if (!email.trim()) {
-      setError("E-posta boş bırakılamaz.");
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setError("Lütfen geçerli bir email adresi girin.");
-      return false;
-    }
-
-    if (!password) {
-      setError("Şifre boş bırakılamaz.");
-      return false;
-    }
-
-    return true;
-  };
-
-  const onLogin = async () => {
-    if (!validate()) return;
-
+  const onLogin = handleSubmit(async (values) => {
+    const trimmedEmail = values.email.trim();
     try {
-      setError("");
-      setLoading(true);
+      setSubmitError("");
 
-      await login({
-        email: email.trim(),
-        password,
-      });
+      await login({ email: trimmedEmail, password: values.password });
     } catch (err) {
       const message = getApiErrorMessage(err);
 
-      if (message === "Please verify your email address before logging in.") {
-        Alert.alert(
-          "Doğrulama Gerekli",
-          "Hesabınız henüz doğrulanmamış. Size yeni bir onay kodu gönderiyoruz...",
-          [
-            {
-              text: "Kodu Gir",
-              onPress: async () => {
-                navigation.navigate("VerifyEmail", { email: email.trim() });
-                resendVerification(email.trim()).catch((err) => {
-                  console.log("Mail gönderilemedi:", err);
-                  Alert.alert("Uyarı", "Yeni kod gönderilirken bir sorun oluştu, lütfen tekrar deneyin.");
-                });
-              }
-            },
-            {
-              text: "İptal",
-              style: "cancel"
-            }
-          ]
-        );
+      if (
+        message === "Please verify your email address before logging in." ||
+        message === "Giriş yapmadan önce lütfen e-posta adresinizi doğrulayın."
+      ) {
+        showAlert({
+          title: "Doğrulama Gerekli",
+          message:
+            "Hesabınız henüz doğrulanmamış. Size yeni bir onay kodu gönderiyoruz...",
+          type: "info",
+          showCancelButton: true,
+          confirmText: "Kodu Gir",
+          cancelText: "İptal",
+          onConfirm: async () => {
+            navigation.navigate("VerifyEmail", { email: trimmedEmail });
+            resendVerification(trimmedEmail).catch((resendErr) => {
+              console.log("Mail gönderilemedi:", resendErr);
+              showAlert({
+                title: "Uyarı",
+                message:
+                  "Yeni kod gönderilirken bir sorun oluştu, lütfen tekrar deneyin.",
+                type: "danger",
+              });
+            });
+          },
+        });
       } else {
-        setError(message);
+        setSubmitError(message);
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  });
+
+  const firstFieldError =
+    errors.email?.message || errors.password?.message || "";
+  const combinedError = submitError || firstFieldError;
 
   return (
     <View style={{ flex: 1, width, height }}>
@@ -152,33 +144,49 @@ export default function LoginScreen({ navigation }: any) {
                       textAlign: "center",
                       textTransform: "uppercase",
                     }}
-                  > Continue to Your Shared Memories
+                  > Paylaşılan Anılarınıza Devam Edin
                   </Text>
 
-                  <ErrorMessage message={error} />
+                  <ErrorMessage message={combinedError} />
 
                   <View style={{ width: "100%" }}>
-                    <AppInput
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      placeholder="E-posta"
+                    <Controller
+                      control={control}
+                      name="email"
+                      render={({ field: { onChange, value } }) => (
+                        <AppInput
+                          value={value}
+                          onChangeText={onChange}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          placeholder="E-posta"
+                        />
+                      )}
                     />
 
-                    <AppInput
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      placeholder="Şifre"
-                      showPasswordToggle
-                      onPasswordToggle={() => setShowPassword(!showPassword)}
-                      isPasswordVisible={showPassword}
+                    <Controller
+                      control={control}
+                      name="password"
+                      render={({ field: { onChange, value } }) => (
+                        <AppInput
+                          value={value}
+                          onChangeText={onChange}
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          placeholder="Şifre"
+                          showPasswordToggle
+                          onPasswordToggle={() => setShowPassword(!showPassword)}
+                          isPasswordVisible={showPassword}
+                        />
+                      )}
                     />
                   <View style={{ marginTop: 4 }}>
                   <AppButton
                     title="Devam Et"
                     onPress={onLogin}
-                    loading={loading}
+                    loading={isSubmitting}
                   />
                 </View>
 

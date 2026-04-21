@@ -3,7 +3,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
-import { navigate } from "../navigation/NavigationRef";
+import { navigateWhenReady } from "../navigation/NavigationRef";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -22,6 +22,46 @@ export function usePushNotifications() {
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
+    const handleNotificationNavigation = (data: {
+      type?: string;
+      placeId?: string;
+      groupId?: string;
+    }) => {
+      if (!data?.type) return;
+
+      const placeTypes = new Set([
+        "place_created",
+        "place_added_to_wishlist",
+        "place_photo_added",
+        "place_review_added",
+        "place_marked_visited",
+        "wish_day_invite",
+        "wish_day_updated",
+        "wish_day_cancelled",
+        "wish_day_rsvp_response",
+        "wish_day_reminder",
+      ]);
+
+      const groupTypes = new Set([
+        "group_member_added",
+        "group_invitation_sent",
+        "group_invite",
+        "group_invite_accepted",
+        "group_invite_rejected",
+        "group_member_left",
+        "ownership_transferred",
+      ]);
+
+      if (placeTypes.has(data.type) && data.placeId) {
+        navigateWhenReady("PlaceDetail", { placeId: data.placeId });
+        return;
+      }
+
+      if (groupTypes.has(data.type) && data.groupId) {
+        navigateWhenReady("GroupMembers", { groupId: data.groupId });
+      }
+    };
+
     registerForPushNotificationsAsync().then(async (token) => {
       if (!token) return;
 
@@ -42,30 +82,21 @@ export function usePushNotifications() {
         };
 
         console.log("Notification clicked:", data);
-
-        if (
-          data?.type === "place_created" ||
-          data?.type === "place_added_to_wishlist" ||
-          data?.type === "place_photo_added" ||
-          data?.type === "place_review_added" ||
-          data?.type === "place_marked_visited"
-        ) {
-          if (data.placeId) {
-            navigate("PlaceDetail", { placeId: data.placeId });
-            return;
-          }
-        }
-
-        if (
-          data?.type === "group_member_added" ||
-          data?.type === "group_invitation_sent"
-        ) {
-          if (data.groupId) {
-            navigate("GroupMembers", { groupId: data.groupId });
-            return;
-          }
-        }
+        handleNotificationNavigation(data);
       });
+
+    // App kapalıyken bildirime basılıp açıldıysa initial response'i de yakala.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+
+      const data = response.notification.request.content.data as {
+        type?: string;
+        placeId?: string;
+        groupId?: string;
+      };
+      console.log("Initial notification response:", data);
+      handleNotificationNavigation(data);
+    });
 
     return () => {
       notificationListener.current?.remove();

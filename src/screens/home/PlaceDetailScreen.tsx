@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import React, { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Dimensions,
     FlatList,
     Image,
@@ -17,6 +18,9 @@ import {
     View
 } from "react-native";
 import { deletePlacePhoto } from "../../api/photos";
+import ZoomableImage from "../../components/common/ZoomableImage";
+import WishDayRsvpCard from "../../components/place/WishDayRsvpCard";
+import { useAlert } from "../../context/AlertContext";
 let MapView: any = null;
 let Marker: any = null;
 let PROVIDER_GOOGLE: any = null;
@@ -28,9 +32,7 @@ if (Platform.OS !== "web") {
     PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
 }
 
-// YENİ: deletePlace eklendi
 import CustomActionSheet from "@/src/components/common/CustomActionSheet";
-import CustomAlert from "@/src/components/common/CustomAlert";
 import { deletePlace, getPlaceDetail } from "../../api/places";
 import { markPlaceAsVisited } from "../../api/wishlist";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
@@ -40,8 +42,7 @@ import { getApiErrorMessage } from "../../utils/helpers";
 
 export default function PlaceDetailScreen({ route, navigation }: any) {
     const { placeId } = route.params;
-    const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
-    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+    const { showAlert, confirm } = useAlert();
     const [detail, setDetail] = useState<PlaceDetailAggregate | null>(null);
     const [loading, setLoading] = useState(true);
     const [markingVisited, setMarkingVisited] = useState(false);
@@ -49,8 +50,10 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
     const [isViewerVisible, setIsViewerVisible] = useState(false);
     const [viewerIndex, setViewerIndex] = useState(0);
     const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
-    const [isPlaceDeleteModalVisible, setIsPlaceDeleteModalVisible] = useState(false);
+    const [savingPhoto, setSavingPhoto] = useState(false);
+    const [isPhotoZoomed, setIsPhotoZoomed] = useState(false);
     const screenWidth = Dimensions.get("window").width;
+    const screenHeight = Dimensions.get("window").height;
     const headerSliderRef = useRef<FlatList<any>>(null);
     const viewerSliderRef = useRef<FlatList<any>>(null);
     const load = async () => {
@@ -59,7 +62,7 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
             const data = await getPlaceDetail(placeId);
             setDetail(data);
         } catch (err) {
-            Alert.alert("Error", getApiErrorMessage(err));
+            showAlert({ title: "Hata", message: getApiErrorMessage(err), type: "danger" });
         } finally {
             setLoading(false);
         }
@@ -77,71 +80,117 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
             const nowIso = new Date().toISOString();
             await markPlaceAsVisited(placeId, nowIso);
             await load();
-            Alert.alert("Success", "Mekan ziyaret edildi olarak işaretlendi.");
+            showAlert({
+                title: "Başarılı",
+                message: "Mekan ziyaret edildi olarak işaretlendi.",
+                type: "success",
+            });
         } catch (err) {
-            Alert.alert("Error", getApiErrorMessage(err));
+            showAlert({ title: "Hata", message: getApiErrorMessage(err), type: "danger" });
         } finally {
             setMarkingVisited(false);
         }
     };
 
-    // --- YENİ: MEKANI SİLME İŞLEMLERİ ---
-    const handleDeletePlacePress = () => {
-    setIsPlaceDeleteModalVisible(true);
-    };
+    const handleDeletePlacePress = async () => {
+        const ok = await confirm({
+            title: "Mekanı Sil",
+            message:
+                "Bu mekanı tamamen silmek istediğinize emin misiniz? Fotoğraflar ve yorumlar da kalıcı olarak silinecektir.",
+            type: "danger",
+            confirmText: "Mekanı Sil",
+            cancelText: "Vazgeç",
+        });
+        if (!ok) return;
 
-    // 2. Modaldaki "Sil" butonuna basınca çalışacak asıl işlem
-    const onConfirmDeletePlace = async () => {
         try {
-            setIsPlaceDeleteModalVisible(false); // Modalı hemen kapat
             setLoading(true);
-            
-            await deletePlace(placeId); // API çağrısı
-            
-            // Başarılı uyarısını da istersen CustomAlert ile yapabilirsin 
-            // ama goBack yapacağımız için hızlıca geçebiliriz
-            navigation.goBack(); 
+            await deletePlace(placeId);
+            navigation.goBack();
         } catch (err) {
             setLoading(false);
-            Alert.alert("Hata", getApiErrorMessage(err));
+            showAlert({ title: "Hata", message: getApiErrorMessage(err), type: "danger" });
         }
     };
 
     const actionOptions = [
-        { 
-            label: "Mekanı Düzenle", 
-            icon: "create-outline", 
-            onPress: () => navigation.navigate("CreatePlace", { editPlaceId: placeId, placeData: detail }) 
+        {
+            label: "Mekanı Düzenle",
+            icon: "create-outline",
+            onPress: () => navigation.navigate("CreatePlace", { editPlaceId: placeId, placeData: detail })
         },
-        { 
-            label: "Mekanı Sil", 
-            icon: "trash-outline", 
-            isDestructive: true, 
-            onPress: () => handleDeletePlacePress() // Daha önce yaptığımız CustomAlert'i tetikler
+        {
+            label: "Mekanı Sil",
+            icon: "trash-outline",
+            isDestructive: true,
+            onPress: () => handleDeletePlacePress()
         },
     ];
-    const handleDeletePhotoPress = (photoId: string) => {
-    setPhotoToDelete(photoId);
-    setIsDeleteModalVisible(true);
-    };
 
-// 2. Asıl silme işlemini yapan fonksiyon
-    const confirmDeletePhoto = async () => {
-        if (!photoToDelete) return;
+    const handleDeletePhotoPress = async (photoId: string) => {
+        const ok = await confirm({
+            title: "Fotoğrafı Sil",
+            message: "Bu fotoğrafı kalıcı olarak silmek istediğinize emin misiniz?",
+            type: "danger",
+            confirmText: "Sil",
+            cancelText: "Vazgeç",
+        });
+        if (!ok) return;
 
         try {
-            setIsDeleteModalVisible(false); // Modalı hemen kapat
             setLoading(true);
-            
-            await deletePlacePhoto(photoToDelete); // Servis çağrısı
-            await load(); // Listeyi yenile
-            
-            setPhotoToDelete(null); // ID'yi temizle
+            await deletePlacePhoto(photoId);
+            await load();
         } catch (err) {
-            Alert.alert("Hata", getApiErrorMessage(err));
+            showAlert({ title: "Hata", message: getApiErrorMessage(err), type: "danger" });
             setLoading(false);
         }
     };
+    const handleSaveCurrentPhoto = async () => {
+        const currentPhotos = detail?.photos ?? [];
+        const current = currentPhotos[viewerIndex];
+        if (!current?.imageUrl) {
+            showAlert({ title: "Hata", message: "Kaydedilecek fotoğraf bulunamadı.", type: "danger" });
+            return;
+        }
+
+        try {
+            setSavingPhoto(true);
+
+            const permission = await MediaLibrary.requestPermissionsAsync();
+            if (!permission.granted) {
+                showAlert({
+                    title: "İzin Gerekli",
+                    message: "Fotoğrafı cihazına kaydetmek için galeri erişimine izin vermelisin.",
+                    type: "info",
+                });
+                return;
+            }
+
+            const fileExtMatch = current.imageUrl.match(/\.(jpg|jpeg|png|heic|webp)(?:\?|$)/i);
+            const ext = fileExtMatch ? fileExtMatch[1].toLowerCase() : "jpg";
+            const fileName = `sm_${current.id ?? Date.now()}.${ext}`;
+            const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+            const downloadRes = await FileSystem.downloadAsync(current.imageUrl, fileUri);
+            await MediaLibrary.saveToLibraryAsync(downloadRes.uri);
+
+            showAlert({
+                title: "Başarılı",
+                message: "Fotoğraf cihazına kaydedildi.",
+                type: "success",
+            });
+        } catch (err) {
+            showAlert({
+                title: "Hata",
+                message: getApiErrorMessage(err) || "Fotoğraf kaydedilemedi.",
+                type: "danger",
+            });
+        } finally {
+            setSavingPhoto(false);
+        }
+    };
+
    const renderAccurateStars = (ratingOutOf10: number | null) => {
         // Puan yoksa 5 tane gri, boş yıldız göster
         if (ratingOutOf10 === null || ratingOutOf10 === 0) {
@@ -272,33 +321,13 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             <Text style={styles.noCoverText}>Henüz Fotoğraf Eklenmemiş</Text>
                         </View>
                     )}
+                    <TouchableOpacity style={styles.backTopButton} onPress={() => navigation.goBack()}>
+                        <Ionicons name="chevron-back" size={26} color="#102a43" />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.optionsButton} onPress={() => setIsActionSheetVisible(true)}>
                         <Ionicons name="ellipsis-vertical" size={24} color="#102a43" />
                     </TouchableOpacity>
                 </View>
-                <CustomAlert 
-                    visible={isDeleteModalVisible}
-                    type="danger"
-                    title="Fotoğrafı Sil"
-                    message="Bu fotoğrafı kalıcı olarak silmek istediğinize emin misiniz?"
-                    confirmText="Sil"
-                    cancelText="Vazgeç"
-                    onConfirm={confirmDeletePhoto}
-                    onCancel={() => {
-                        setIsDeleteModalVisible(false);
-                        setPhotoToDelete(null);
-                    }}
-                />
-                <CustomAlert 
-                    visible={isPlaceDeleteModalVisible}
-                    type="danger"
-                    title="Mekanı Sil"
-                    message="Bu mekanı tamamen silmek istediğinize emin misiniz? Fotoğraflar ve yorumlar da kalıcı olarak silinecektir."
-                    confirmText="Mekanı Sil"
-                    cancelText="Vazgeç"
-                    onConfirm={onConfirmDeletePlace}
-                    onCancel={() => setIsPlaceDeleteModalVisible(false)}
-                />
                 <CustomActionSheet 
                     visible={isActionSheetVisible}
                     onClose={() => setIsActionSheetVisible(false)}
@@ -327,6 +356,24 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             <Text style={styles.actionBtnText} numberOfLines={1}>{currentUserReview ? "Yorumu Düzenle" : "Yorum Ekle"}</Text>
                         </TouchableOpacity>
 
+                        {status !== 1 && (status as any) !== "Wishlist" && (
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={() =>
+                                    navigation.navigate("BillSplit", {
+                                        placeId,
+                                        groupId: detail?.groupId,
+                                        placeTitle: detail?.title,
+                                    })
+                                }
+                            >
+                                <View style={[styles.actionIconBox, { backgroundColor: "#ede9fe" }]}>
+                                    <Ionicons name="calculator" size={20} color="#7c3aed" />
+                                </View>
+                                <Text style={styles.actionBtnText} numberOfLines={1}>Hesap Paylaş</Text>
+                            </TouchableOpacity>
+                        )}
+
                         {status === 1 && (
                             <TouchableOpacity style={styles.actionBtn} onPress={onMarkAsVisited} disabled={markingVisited}>
                                 <View style={[styles.actionIconBox, { backgroundColor: "#dcfce7" }]}>
@@ -336,6 +383,13 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                             </TouchableOpacity>
                         )}
                     </View>
+
+                    {(status === 1 || (status as any) === "Wishlist") && (
+                        <WishDayRsvpCard
+                            placeId={placeId}
+                            onError={(msg) => showAlert({ title: "Hata", message: msg, type: "danger" })}
+                        />
+                    )}
 
                     <View style={styles.unifiedReviewCard}>
                         
@@ -457,23 +511,48 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                         </View>
                         {!!visitDate && (
                             <View style={styles.infoRow}>
-                                <Ionicons name="flag-sharp" size={20} color="#50ec8a73" style={styles.infoIcon} />
-                                <Text style={[styles.infoText, { color: "#50ec8a73", fontWeight: "600" }]}>
-                                    {formatDate(visitDate)} Tarihinde {status === 1 ? "Planlandı" : "Ziyaret Edildi"}
+                                <Ionicons name="flag-sharp" size={20} color="#136d34a2" style={styles.infoIcon} />
+                                <Text style={[styles.infoText, { color: "#136d34a2", fontWeight: "600" }]}>
+                                    {formatDate(visitDate)} Tarihinde {status === 1 ? "Planlandı" : "Gidildi"}
                                 </Text>                            
                             </View>
                         )}
                     </View>
 
                 </View>
-                <Modal visible={isViewerVisible} transparent animationType="fade">
+                <Modal
+                    visible={isViewerVisible}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => {
+                        setIsViewerVisible(false);
+                        setIsPhotoZoomed(false);
+                    }}
+                >
                     <View style={styles.viewerOverlay}>
-                        <TouchableOpacity
-                            style={styles.viewerCloseButton}
-                            onPress={() => setIsViewerVisible(false)}
-                        >
-                            <Ionicons name="close" size={28} color="#ffffff" />
-                        </TouchableOpacity>
+                        <View style={styles.viewerTopBar}>
+                            <TouchableOpacity
+                                style={styles.viewerTopButton}
+                                onPress={() => {
+                                    setIsViewerVisible(false);
+                                    setIsPhotoZoomed(false);
+                                }}
+                            >
+                                <Ionicons name="close" size={26} color="#ffffff" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.viewerTopButton}
+                                onPress={handleSaveCurrentPhoto}
+                                disabled={savingPhoto}
+                            >
+                                {savingPhoto ? (
+                                    <ActivityIndicator color="#ffffff" size="small" />
+                                ) : (
+                                    <Ionicons name="download-outline" size={24} color="#ffffff" />
+                                )}
+                            </TouchableOpacity>
+                        </View>
 
                         {photos.length > 0 && (
                             <FlatList
@@ -481,6 +560,7 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                                 data={photos}
                                 horizontal
                                 pagingEnabled
+                                scrollEnabled={!isPhotoZoomed}
                                 initialScrollIndex={viewerIndex}
                                 getItemLayout={(_, index) => ({
                                     length: screenWidth,
@@ -492,13 +572,15 @@ export default function PlaceDetailScreen({ route, navigation }: any) {
                                 onMomentumScrollEnd={(e) => {
                                     const index = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
                                     setViewerIndex(index);
+                                    setIsPhotoZoomed(false);
                                 }}
                                 renderItem={({ item }: any) => (
                                     <View style={[styles.viewerImageWrapper, { width: screenWidth }]}>
-                                        <Image
-                                            source={{ uri: item.imageUrl }}
-                                            style={styles.viewerImage}
-                                            resizeMode="contain"
+                                        <ZoomableImage
+                                            uri={item.imageUrl}
+                                            width={screenWidth}
+                                            height={screenHeight * 0.78}
+                                            onZoomStateChange={setIsPhotoZoomed}
                                         />
                                     </View>
                                 )}
@@ -553,9 +635,15 @@ const styles = StyleSheet.create({
         shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5
     },
     // YENİ EKLENDİ
-    optionsButton: { 
-        position: "absolute", top: Platform.OS === "ios" ? 50 : 30, right: 20, 
-        backgroundColor: "rgba(255,255,255,0.9)", width: 44, height: 44, 
+    optionsButton: {
+        position: "absolute", top: Platform.OS === "ios" ? 50 : 30, right: 20,
+        backgroundColor: "rgba(255,255,255,0.9)", width: 44, height: 44,
+        borderRadius: 22, justifyContent: "center", alignItems: "center",
+        shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5
+    },
+    backTopButton: {
+        position: "absolute", top: Platform.OS === "ios" ? 50 : 30, left: 20,
+        backgroundColor: "rgba(255,255,255,0.9)", width: 44, height: 44,
         borderRadius: 22, justifyContent: "center", alignItems: "center",
         shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5
     },
@@ -764,17 +852,23 @@ const styles = StyleSheet.create({
         color: "#102a43",
     },
 
-    viewerCloseButton: {
+    viewerTopBar: {
         position: "absolute",
         top: Platform.OS === "ios" ? 56 : 26,
         right: 20,
         zIndex: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    viewerTopButton: {
         width: 42,
         height: 42,
         borderRadius: 21,
         backgroundColor: "rgba(255,255,255,0.18)",
         justifyContent: "center",
-        alignItems: "center"
+        alignItems: "center",
+        marginLeft: 10,
     },
     viewerImageWrapper: {
         flex: 1,

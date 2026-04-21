@@ -2,11 +2,16 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 
 import AccountSettingsScreen from "../screens/auth/AccountSettingsScreen";
+import BillSplitScreen from "../screens/bill/BillSplitScreen";
+import MyBillsScreen from "../screens/bill/MyBillsScreen";
 import CreateGroupScreen from "../screens/groups/CreateGroupScreen";
+import GroupListScreen from "../screens/groups/GroupListScreen";
+import GroupMembersScreen from "../screens/groups/GroupMembersScreen";
 import CreatePlaceScreen from "../screens/home/CreatePlaceScreen";
 import CreateWishlistScreen from "../screens/home/CreateWishlistScreen";
 import EditReviewScreen from "../screens/home/EditReviewScreen";
 import PlaceDetailScreen from "../screens/home/PlaceDetailScreen";
+import UploadPhotoScreen from "../screens/home/UploadPhotoScreen";
 import WishlistScreen from "../screens/home/WishlistScreen";
 import NotificationsScreen from "../screens/notification/notification";
 import ProfileScreen from "../screens/profile/ProfileScreen";
@@ -24,7 +29,12 @@ export default function AppStackNavigator() {
             <Stack.Screen name="EditReview" component={EditReviewScreen} />
             <Stack.Screen name="ProfileHome" component={ProfileScreen} />
             <Stack.Screen name="CreateGroupScreen" component={CreateGroupScreen} />
+            <Stack.Screen name="GroupList" component={GroupListScreen} options={{  headerShown: false }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen}options={{ headerShown: false,}} />
+            <Stack.Screen name="BillSplit" component={BillSplitScreen} />
+            <Stack.Screen name="MyBills" component={MyBillsScreen} />
+            <Stack.Screen name="UploadPhoto" component={UploadPhotoScreen} />
+            <Stack.Screen name="GroupMembers" component={GroupMembersScreen} />
         </Stack.Navigator>
     );
 

@@ -14,24 +14,30 @@ import {
   ActionSheetIOS,
   Alert,
   Dimensions,
+  FlatList,
   Image,
   Keyboard,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { getMapPlaces } from "../../api/maps";
 import { getPlaceDetail } from "../../api/places";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import { mapGroupIcon } from "../../components/group/GroupAvatar";
 import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
+import { Group } from "../../types/group";
+import { getPlaceCategoryLabel } from "../../utils/placeCategories";
 
 const { width, height } = Dimensions.get("window");
 
@@ -131,7 +137,12 @@ const MarkerItem = memo(function MarkerItem({
 
 export default function MapScreen({ route, navigation }: any) {
   const { user } = useAuth();
-  const { selectedGroupId, initializeSelectedGroup } = useSelectedGroup();
+  const {
+    selectedGroup,
+    selectedGroupId,
+    setSelectedGroup,
+    initializeSelectedGroup,
+  } = useSelectedGroup();
   const mapRef = useRef<MapView>(null);
   const targetPlaceId = route.params?.targetPlaceId;
   const ignoreNextMapPressRef = useRef(false);
@@ -142,6 +153,9 @@ export default function MapScreen({ route, navigation }: any) {
   const [activeFilter, setActiveFilter] = useState<
     "All" | "Visited" | "Wishlist"
   >("All");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
 
   const [selectedPlaceExtra, setSelectedPlaceExtra] = useState<{
     imageUrl?: string;
@@ -291,7 +305,6 @@ export default function MapScreen({ route, navigation }: any) {
       setLoading(true);
 
       const placesArray = await getMapPlaces(selectedGroupId);
-      console.log("map places raw:", JSON.stringify(placesArray, null, 2));
       if (Array.isArray(placesArray)) {
         const validPlaces = placesArray.filter(
           (p: any) =>
@@ -352,7 +365,9 @@ export default function MapScreen({ route, navigation }: any) {
       try {
         const response = await getMyGroups();
         const { groups, lastSelectedGroupId: backendLastSelectedGroupId } = response.data;
-        
+
+        setAvailableGroups(groups ?? []);
+
         // Use user's lastSelectedGroupId from auth, fallback to backend value
         const groupIdToSelect = user.lastSelectedGroupId ?? backendLastSelectedGroupId;
         await initializeSelectedGroup(groups, groupIdToSelect);
@@ -373,6 +388,13 @@ export default function MapScreen({ route, navigation }: any) {
       result = result.filter((p) => p.status === 1 || p.status === "Wishlist");
     }
 
+    if (categoryFilter) {
+      const wanted = categoryFilter.toLowerCase().trim();
+      result = result.filter(
+        (p) => (p.category ?? "").toLowerCase().trim() === wanted
+      );
+    }
+
     if (searchQuery.trim() !== "") {
       const query = searchQuery.trim().toLowerCase();
 
@@ -385,7 +407,43 @@ export default function MapScreen({ route, navigation }: any) {
     }
 
     return result;
-  }, [allPlaces, activeFilter, searchQuery]);
+  }, [allPlaces, activeFilter, categoryFilter, searchQuery]);
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    allPlaces.forEach((p) => {
+      const c = (p.category ?? "").trim();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort((a, b) =>
+      getPlaceCategoryLabel(a).localeCompare(getPlaceCategoryLabel(b), "tr")
+    );
+  }, [allPlaces]);
+
+  const activeFilterCount = useMemo(() => {
+    let n = 0;
+    if (activeFilter !== "All") n += 1;
+    if (categoryFilter) n += 1;
+    return n;
+  }, [activeFilter, categoryFilter]);
+
+  const handlePickGroup = useCallback(
+    async (group: Group) => {
+      try {
+        await setSelectedGroup(group);
+      } catch (err) {
+        console.log("Failed to set selected group:", err);
+      }
+      setSelectedPlace(null);
+      setSelectedPlaceExtra(null);
+    },
+    [setSelectedGroup]
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setActiveFilter("All");
+    setCategoryFilter(null);
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -564,78 +622,51 @@ export default function MapScreen({ route, navigation }: any) {
       </MapView>
 
       <SafeAreaView style={styles.topOverlayContainer} pointerEvents="box-none">
-        <View style={styles.searchBar}>
-          <Ionicons
-            name="search"
-            size={20}
-            color={COLORS.textMuted}
-            style={{ marginRight: 8 }}
-          />
+        <View style={styles.searchRow}>
+          <View style={[styles.searchBar, { flex: 1, marginHorizontal: 0 }]}>
+            <Ionicons
+              name="search"
+              size={20}
+              color={COLORS.textMuted}
+              style={{ marginRight: 8 }}
+            />
 
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Mekan, kategori veya şehir ara..."
-            placeholderTextColor="#94a3b8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-          />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Mekan, kategori veya şehir ara..."
+              placeholderTextColor="#94a3b8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+            />
 
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery("")}
-              style={styles.clearSearchButton}
-            >
-              <Ionicons name="close-circle" size={20} color="#cbd5e1" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScroll}
-          contentContainerStyle={styles.filterScrollContent}
-        >
-          {["All", "Visited", "Wishlist"].map((filterItem) => {
-            const isActive = activeFilter === filterItem;
-            let activeBg = COLORS.textDark;
-
-            if (filterItem === "Visited") activeBg = COLORS.visited;
-            if (filterItem === "Wishlist") activeBg = COLORS.wishlistDark;
-
-            return (
+            {searchQuery.length > 0 && (
               <TouchableOpacity
-                key={filterItem}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setActiveFilter(filterItem as "All" | "Visited" | "Wishlist");
-                  setSelectedPlace(null);
-                  setSelectedPlaceExtra(null);
-                }}
-                style={[
-                  styles.filterChip,
-                  isActive
-                    ? { backgroundColor: activeBg, borderColor: activeBg }
-                    : null,
-                ]}
+                onPress={() => setSearchQuery("")}
+                style={styles.clearSearchButton}
               >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    isActive ? { color: "white" } : null,
-                  ]}
-                >
-                  {filterItem === "All"
-                    ? "Tümü"
-                    : filterItem === "Visited"
-                    ? "Ziyaret Edilenler"
-                    : "İstek Listesi"}
-                </Text>
+                <Ionicons name="close-circle" size={20} color="#cbd5e1" />
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            )}
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setFilterModalVisible(true)}
+            style={styles.filterButton}
+          >
+            <Ionicons
+              name="options-outline"
+              size={22}
+              color={COLORS.textDark}
+            />
+            {activeFilterCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
 
       {selectedPlace && (
@@ -740,6 +771,216 @@ export default function MapScreen({ route, navigation }: any) {
       >
         <Ionicons name="scan" size={23} color={COLORS.textDark} />
       </TouchableOpacity>
+
+      <Modal
+        transparent
+        animationType="slide"
+        visible={filterModalVisible}
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setFilterModalVisible(false)}
+        >
+          <Pressable onPress={() => {}} style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filtrele</Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {activeFilterCount > 0 && (
+                  <TouchableOpacity
+                    onPress={clearAllFilters}
+                    style={styles.clearFiltersButton}
+                  >
+                    <Text style={styles.clearFiltersText}>Temizle</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => setFilterModalVisible(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={18} color={COLORS.textDark} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView
+              style={{ maxHeight: height * 0.65 }}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.filterSectionTitle}>Durum</Text>
+              <View style={styles.filterChipRow}>
+                {(["All", "Visited", "Wishlist"] as const).map((filterItem) => {
+                  const isActive = activeFilter === filterItem;
+                  let activeBg = COLORS.textDark;
+                  if (filterItem === "Visited") activeBg = COLORS.visited;
+                  if (filterItem === "Wishlist") activeBg = COLORS.wishlistDark;
+
+                  return (
+                    <TouchableOpacity
+                      key={filterItem}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        setActiveFilter(filterItem);
+                        setSelectedPlace(null);
+                        setSelectedPlaceExtra(null);
+                      }}
+                      style={[
+                        styles.filterChip,
+                        isActive
+                          ? { backgroundColor: activeBg, borderColor: activeBg }
+                          : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          isActive ? { color: "white" } : null,
+                        ]}
+                      >
+                        {filterItem === "All"
+                          ? "Tümü"
+                          : filterItem === "Visited"
+                          ? "Ziyaret Edilenler"
+                          : "İstek Listesi"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.filterSectionTitle}>Kategori</Text>
+              {availableCategories.length === 0 ? (
+                <Text style={styles.filterEmptyText}>
+                  Bu grupta henüz kategori yok.
+                </Text>
+              ) : (
+                <View style={styles.filterChipRow}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => setCategoryFilter(null)}
+                    style={[
+                      styles.filterChip,
+                      categoryFilter === null
+                        ? {
+                            backgroundColor: COLORS.textDark,
+                            borderColor: COLORS.textDark,
+                          }
+                        : null,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        categoryFilter === null ? { color: "white" } : null,
+                      ]}
+                    >
+                      Tümü
+                    </Text>
+                  </TouchableOpacity>
+
+                  {availableCategories.map((cat) => {
+                    const isActive = categoryFilter === cat;
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          setCategoryFilter(cat);
+                          setSelectedPlace(null);
+                          setSelectedPlaceExtra(null);
+                        }}
+                        style={[
+                          styles.filterChip,
+                          isActive
+                            ? {
+                                backgroundColor: COLORS.textDark,
+                                borderColor: COLORS.textDark,
+                              }
+                            : null,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterChipText,
+                            isActive ? { color: "white" } : null,
+                          ]}
+                        >
+                          {getPlaceCategoryLabel(cat)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              <Text style={styles.filterSectionTitle}>Grup</Text>
+              {availableGroups.length === 0 ? (
+                <Text style={styles.filterEmptyText}>
+                  Henüz hiç grubun yok.
+                </Text>
+              ) : (
+                <FlatList
+                  data={availableGroups}
+                  keyExtractor={(g) => g.id}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => {
+                    const isActive = item.id === selectedGroupId;
+                    return (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => handlePickGroup(item)}
+                        style={[
+                          styles.groupRow,
+                          isActive ? styles.groupRowActive : null,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.groupAvatar,
+                            {
+                              backgroundColor:
+                                (item as any).colorCode || COLORS.textDark,
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name={mapGroupIcon(item.selectedIconsJson)}
+                            size={17}
+                            color="#fff"
+                          />
+                        </View>
+                        <Text style={styles.groupName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        {isActive && (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={COLORS.visited}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.applyButton}
+              activeOpacity={0.9}
+              onPress={() => setFilterModalVisible(false)}
+            >
+              <Text style={styles.applyButtonText}>
+                {filteredPlaces.length} sonucu göster
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -828,6 +1069,13 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 18,
+    gap: 10,
+  },
+
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -843,6 +1091,175 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 7,
+  },
+
+  filterButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.7)",
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 7,
+  },
+
+  filterBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: COLORS.wishlistDark,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+
+  filterBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.45)",
+    justifyContent: "flex-end",
+  },
+
+  modalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+  },
+
+  modalHandle: {
+    alignSelf: "center",
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    marginBottom: 10,
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.textDark,
+  },
+
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+
+  clearFiltersButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+  },
+
+  clearFiltersText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.textDark,
+  },
+
+  filterSectionTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+
+  filterChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  filterEmptyText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    fontStyle: "italic",
+    marginBottom: 6,
+  },
+
+  groupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+
+  groupRowActive: {
+    backgroundColor: "#EEF4F7",
+    borderColor: COLORS.visited,
+  },
+
+  groupAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  groupName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+
+  applyButton: {
+    marginTop: 14,
+    backgroundColor: COLORS.textDark,
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  applyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
 
   searchInput: {
@@ -867,10 +1284,10 @@ const styles = StyleSheet.create({
 
   filterChip: {
     backgroundColor: "rgba(255,255,255,0.96)",
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 22,
-    marginRight: 10,
+    marginRight: 2,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     shadowColor: "#000",

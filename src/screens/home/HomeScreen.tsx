@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   ImageBackground,
   Modal,
@@ -19,7 +18,11 @@ import {
 import { getMyGroups } from "../../api/groups";
 import { getPlacesByGroup } from "../../api/places";
 import AppButton from "../../components/common/AppButton";
-import LoadingSpinner from "../../components/common/LoadingSpinner";
+import {
+  SkeletonList,
+  SkeletonPlaceCard,
+} from "../../components/common/Skeleton";
+import { useAlert } from "../../context/AlertContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { Group } from "../../types/group";
@@ -53,8 +56,8 @@ const COLORS = {
 
   ratingIcon: "#F59E0B",
 
-  iconMapBg: "#F1F5F9",
-  iconMap: "#64748B",
+  iconMapBg: "#e3f1ff",
+  iconMap: "#1E90FF",
 
   iconChatBg: "#ECFDF5",
   iconChat: "#10B981",
@@ -85,61 +88,6 @@ const FALLBACK_CATEGORY = {
   image: undefined,
 };
 
-const StatPill = ({
-  label,
-  value,
-  bgColor,
-  textColor,
-  icon,
-}: {
-  label: string;
-  value: number;
-  bgColor: string;
-  textColor: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}) => {
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: bgColor,
-        borderRadius: 20,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.6)",
-      }}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 4,
-        }}
-      >
-        <Ionicons name={icon} size={16} color={textColor} />
-        <Text style={{ fontSize: 22, fontWeight: "900", color: COLORS.text }}>
-          {value}
-        </Text>
-      </View>
-
-      <Text
-        style={{
-          fontSize: 11,
-          fontWeight: "700",
-          color: textColor,
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-        }}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-};
-
 const PlaceCard = ({
   place,
   category,
@@ -147,6 +95,7 @@ const PlaceCard = ({
   onMapPress,
   onReviewPress,
   onPhotoPress,
+  nested = false,
 }: {
   place: Place;
   category: string;
@@ -154,178 +103,171 @@ const PlaceCard = ({
   onMapPress: () => void;
   onReviewPress: () => void;
   onPhotoPress: () => void;
+  nested?: boolean;
 }) => {
-  const rating = (place as any).rating ? (place as any).rating.toFixed(1) : "-";
+  const rating =
+    typeof place.rating === "number" && place.rating > 0
+      ? place.rating.toFixed(1)
+      : null;
   const categoryItem = getPlaceCategoryItem(category) || {
     ...FALLBACK_CATEGORY,
     label: category || "Diğer",
   };
 
+  const coverUrl = place.coverPhotoUrl;
+  const hasCover = !!coverUrl;
+  const photoCount = place.photoCount ?? 0;
+
   return (
     <Pressable
       onPress={onPress}
-      style={{
+      style={({ pressed }) => ({
         backgroundColor: categoryItem.bgColor,
-        borderRadius: 20,
+        borderRadius: 18,
         borderWidth: 1,
-        borderColor: categoryItem.borderColor,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: categoryItem.textColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      }}
+        borderColor: nested ? "#EEF2F7" : categoryItem.borderColor,
+        marginBottom: nested ? 10 : 12,
+        padding: 10,
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: nested ? 0.04 : 0.07,
+        shadowRadius: nested ? 6 : 9,
+        elevation: nested ? 2 : 3,
+        transform: [{ scale: pressed ? 0.985 : 1 }],
+      })}
     >
-      <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {/* SOL: Kapak fotoğrafı - sabit kare */}
         <View
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: 16,
+            width: 84,
+            height: 84,
+            borderRadius: 14,
             backgroundColor: categoryItem.iconBg,
             justifyContent: "center",
             alignItems: "center",
-            marginRight: 14,
-            borderWidth: 1,
-            borderColor: categoryItem.borderColor,
+            marginRight: 12,
+            overflow: "hidden",
           }}
         >
-          {getPlaceCategoryImage(category) ? (
+          {hasCover ? (
+            <Image
+              source={{ uri: coverUrl! }}
+              style={{ width: "100%", height: "100%", resizeMode: "cover" }}
+            />
+          ) : getPlaceCategoryImage(category) ? (
             <Image
               source={getPlaceCategoryImage(category)}
-              style={{ width: 24, height: 24, resizeMode: "contain" }}
+              style={{ width: 36, height: 36, resizeMode: "contain", opacity: 0.85 }}
             />
           ) : (
             <Ionicons
               name="location-outline"
-              size={20}
+              size={32}
               color={categoryItem.textColor}
             />
           )}
-        </View>
 
-        <View style={{ flex: 1 }}>
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: 16,
-              fontWeight: "800",
-              color: categoryItem.textColor,
-              marginBottom: 4,
-            }}
-          >
-            {place.title}
-          </Text>
-
-          {(place.visitDate || place.city) && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 8,
-                marginBottom: 8,
-              }}
-            >
-              {place.visitDate && (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={12}
-                    color={categoryItem.textColor}
-                    style={{ marginRight: 4, opacity: 0.7 }}
-                  />
-                  <Text
-                    style={{
-                      color: categoryItem.textColor,
-                      fontSize: 12,
-                      fontWeight: "700",
-                      opacity: 0.8,
-                    }}
-                  >
-                    {formatDate(place.visitDate)}
-                  </Text>
-                </View>
-              )}
-
-              {place.city && (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="location-outline"
-                    size={12}
-                    color={categoryItem.textColor}
-                    style={{ marginRight: 4, opacity: 0.7 }}
-                  />
-                  <Text
-                    style={{
-                      color: categoryItem.textColor,
-                      fontSize: 12,
-                      fontWeight: "700",
-                      opacity: 0.8,
-                    }}
-                  >
-                    {place.city}
-                  </Text>
-                </View>
-              )}
+          {hasCover && photoCount > 1 && (
+            <View style={styles.photoCountBadge}>
+              <Ionicons name="images" size={9} color="#ffffff" />
+              <Text style={styles.photoCountText}>{photoCount}</Text>
             </View>
           )}
+        </View>
+
+        {/* SAG: İsim + chipler + aksiyonlar */}
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              marginBottom: 6,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                flex: 1,
+                fontSize: 15,
+                fontWeight: "800",
+                color: COLORS.text,
+                marginRight: 8,
+                textAlign: "center",
+              }}
+            >
+              {place.title}
+            </Text>
+
+           
+          </View>
 
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
-              marginTop: 4,
+              flexWrap: "wrap",
+              justifyContent: "center",
+              gap: 7,
+              marginBottom: 8,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Pressable onPress={onMapPress} style={styles.actionBtn}>
-                <Ionicons name="map-outline" size={16} color={COLORS.iconMap} />
-              </Pressable>
-
-              <Pressable
-                onPress={onReviewPress}
-                style={[styles.actionBtn, { backgroundColor: COLORS.iconChatBg }]}
-              >
+            {place.visitDate && (
+              <View style={styles.metaChip}>
                 <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={16}
-                  color={COLORS.iconChat}
+                  name="calendar-outline"
+                  size={12}
+                  color={COLORS.textMuted}
                 />
-              </Pressable>
+                <Text style={styles.metaChipText}>
+                  {formatDate(place.visitDate)}
+                </Text>
+              </View>
+            )}
+          </View>
 
-              <Pressable
-                onPress={onPhotoPress}
-                style={[styles.actionBtn, { backgroundColor: COLORS.iconPhotoBg }]}
-              >
-                <Ionicons name="image-outline" size={16} color={COLORS.iconPhoto} />
-              </Pressable>
-            </View>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
+            <Pressable onPress={onMapPress} style={styles.actionBtnCompact}>
+              <Ionicons name="map" size={16} color={COLORS.iconMap} />
+            </Pressable>
 
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "rgba(255,255,255,0.65)",
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-              }}
+            <Pressable
+              onPress={onReviewPress}
+              style={[
+                styles.actionBtnCompact,
+                { backgroundColor: COLORS.iconChatBg },
+              ]}
             >
-              <Ionicons name="star" size={12} color={COLORS.ratingIcon} />
-              <Text
-                style={{
-                  marginLeft: 4,
-                  fontSize: 12,
-                  fontWeight: "900",
-                  color: categoryItem.textColor,
-                }}
-              >
-                {rating}
-              </Text>
-            </View>
+              <Ionicons
+                name="chatbubble-ellipses"
+                size={16}
+                color={COLORS.iconChat}
+              />
+            </Pressable>
+
+            <Pressable
+              onPress={onPhotoPress}
+              style={[
+                styles.actionBtnCompact,
+                { backgroundColor: COLORS.iconPhotoBg },
+              ]}
+            >
+              <Ionicons name="image" size={16} color={COLORS.iconPhoto} />
+            </Pressable>
+            {rating && (
+              <View style={styles.inlineRatingBadge}>
+                <Ionicons name="star" size={15} color={COLORS.ratingIcon} />
+                <Text style={styles.inlineRatingText}>{rating}</Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -335,6 +277,7 @@ const PlaceCard = ({
 
 export default function HomeScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { showAlert } = useAlert();
   const { selectedGroupId, selectedGroup, setSelectedGroup, initializeSelectedGroup } = useSelectedGroup();
 
   const [places, setPlaces] = useState<Place[]>([]);
@@ -346,10 +289,6 @@ export default function HomeScreen({ navigation }: any) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<"all" | "visited" | "wishlist">(
-    "all"
-  );
-
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
 
   const load = async () => {
@@ -361,12 +300,19 @@ export default function HomeScreen({ navigation }: any) {
     try {
       setLoading(true);
       const data = await getPlacesByGroup(selectedGroupId);
-      setPlaces(data);
+      const visitedOnly = (data || []).filter(
+        (p: Place) => p.status === "Visited" || p.status === 2
+      );
+      setPlaces(visitedOnly);
     } catch (err: any) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setPlaces([]);
       } else {
-        Alert.alert("Error", getApiErrorMessage(err));
+        showAlert({
+          title: "Hata",
+          message: getApiErrorMessage(err),
+          type: "danger",
+        });
       }
     } finally {
       setLoading(false);
@@ -421,15 +367,9 @@ export default function HomeScreen({ navigation }: any) {
         selectedCities.length === 0 ||
         (place.city && selectedCities.includes(place.city));
 
-      const isVisited = place.status === "Visited" || place.status === 2;
-      let matchesStatus = true;
-
-      if (statusFilter === "visited") matchesStatus = isVisited;
-      if (statusFilter === "wishlist") matchesStatus = !isVisited;
-
-      return matchesSearch && matchesCategory && matchesCity && matchesStatus;
+      return matchesSearch && matchesCategory && matchesCity;
     });
-  }, [places, searchQuery, selectedCategories, selectedCities, statusFilter]);
+  }, [places, searchQuery, selectedCategories, selectedCities]);
 
   const groupedPlaces = useMemo(() => {
     const groups: { [key: string]: Place[] } = {};
@@ -453,40 +393,6 @@ export default function HomeScreen({ navigation }: any) {
     () => Object.keys(groupedPlaces).sort(),
     [groupedPlaces]
   );
-
-  const stats = useMemo(() => {
-    const visited = places.filter(
-      (p) => p.status === "Visited" || p.status === 2
-    ).length;
-
-    return {
-      total: places.length,
-      visited,
-      wishlist: places.length - visited,
-    };
-  }, [places]);
-
-  const spotlightPlace = useMemo(() => {
-    const wishlistPlaces = places.filter(
-      (p) => p.status === 1 || p.status === "Wishlist"
-    );
-    if (wishlistPlaces.length === 0) return null;
-    return wishlistPlaces[Math.floor(Math.random() * wishlistPlaces.length)];
-  }, [places]);
-
-  const recentPlace = useMemo(() => {
-    if (places.length === 0) return null;
-
-    const withDates = places
-      .filter((p) => p.visitDate)
-      .sort(
-        (a, b) =>
-          new Date(b.visitDate || "").getTime() -
-          new Date(a.visitDate || "").getTime()
-      );
-
-    return withDates[0] || null;
-  }, [places]);
 
   const toggleFilterCategory = (category: string) => {
     setSelectedCategories((prev) =>
@@ -514,14 +420,11 @@ export default function HomeScreen({ navigation }: any) {
     setSearchQuery("");
     setSelectedCategories([]);
     setSelectedCities([]);
-    setStatusFilter("all");
     setIsFilterModalVisible(false);
   };
 
   const getActiveFilterCount = () => {
-    let count = selectedCategories.length + selectedCities.length;
-    if (statusFilter !== "all") count += 1;
-    return count;
+    return selectedCategories.length + selectedCities.length;
   };
 
   if (!selectedGroupId) {
@@ -600,63 +503,97 @@ export default function HomeScreen({ navigation }: any) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 150 }}
             >
-              <View style={{ paddingHorizontal: 20, paddingTop: 10 ,marginTop: 10}}>
+              <View style={{ paddingHorizontal: 20, paddingTop: 10, marginTop: 10 }}>
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
                     marginBottom: 16,
+                    gap: 10,
                   }}
                 >
-                  <Pressable onPress={() => setIsGroupModalVisible(true)}>
-                    <Text
-                      style={{ fontSize: 22, fontWeight: "900", color: COLORS.text }}
-                    >
-                      {selectedGroup?.name.charAt(0).toUpperCase() + selectedGroup?.name.slice(1)} ile Anıların
-                    </Text>
-                  </Pressable>
-
-                  <View
+                  <Text
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      backgroundColor: COLORS.primarySoft,
-                      justifyContent: "center",
-                      alignItems: "center",
+                      fontSize: 24,
+                      fontWeight: "900",
+                      color: COLORS.text,
+                      flexShrink: 1,
                     }}
                   >
-                    <Ionicons name="sparkles" size={18} color={COLORS.primaryDark} />
-                  </View>
-                </View>
+                    Anıların
+                  </Text>
 
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <StatPill
-                    label="Tümü"
-                    value={stats.total}
-                    bgColor={COLORS.statAllBg}
-                    textColor={COLORS.statAllText}
-                    icon="layers"
-                  />
-                  <StatPill
-                    label="Gidilen"
-                    value={stats.visited}
-                    bgColor={COLORS.statVisitedBg}
-                    textColor={COLORS.statVisitedText}
-                    icon="checkmark-circle"
-                  />
-                  <StatPill
-                    label="İstek"
-                    value={stats.wishlist}
-                    bgColor={COLORS.statWishlistBg}
-                    textColor={COLORS.statWishlistText}
-                    icon="heart"
-                  />
+                  <Pressable
+                    onPress={() => setIsGroupModalVisible(true)}
+                    style={({ pressed }) => {
+                      const accent = selectedGroup?.colorCode || COLORS.primary;
+                      return {
+                        backgroundColor: pressed ? `${accent}25` : `${accent}12`,
+                        paddingLeft: 5,
+                        paddingRight: 10,
+                        paddingVertical: 4,
+                        borderRadius: 999,
+                        borderWidth: 1.5,
+                        borderColor: accent,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        shadowColor: accent,
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.22,
+                        shadowRadius: 6,
+                        elevation: 3,
+                        transform: [{ scale: pressed ? 0.97 : 1 }],
+                      };
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        backgroundColor:
+                          selectedGroup?.colorCode || COLORS.primary,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Ionicons name={selectedGroup?.selectedIconsJson as any || "people"} size={12} color="#FFFFFF" />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: "800",
+                        color: selectedGroup?.colorCode || COLORS.primary,
+                        maxWidth: 140,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {selectedGroup?.name || "Grup Seç"}
+                    </Text>
+                    <View
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        backgroundColor: `${selectedGroup?.colorCode || COLORS.primary}22`,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginLeft: -2,
+                      }}
+                    >
+                      <Ionicons
+                        name="chevron-down"
+                        size={12}
+                        color={selectedGroup?.colorCode || COLORS.primary}
+                      />
+                    </View>
+                  </Pressable>
                 </View>
               </View>
 
-              <View style={{ paddingHorizontal: 20, marginTop: 10, marginBottom: 8 }}>
+              <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <View
                     style={{
@@ -753,7 +690,12 @@ export default function HomeScreen({ navigation }: any) {
               </View>
 
               {loading ? (
-                <LoadingSpinner />
+                <SkeletonList
+                  count={3}
+                  spacing={18}
+                  style={{ paddingHorizontal: 16, paddingTop: 8 }}
+                  renderItem={() => <SkeletonPlaceCard />}
+                />
               ) : displayedCategories.length === 0 ? (
                 <View
                   style={{
@@ -799,140 +741,33 @@ export default function HomeScreen({ navigation }: any) {
                 </View>
               ) : (
                 <View style={{ paddingHorizontal: 20 }}>
-                  {displayedCategories.map((category) => {
-                    const categoryItem = getPlaceCategoryItem(category) || {
-                      ...FALLBACK_CATEGORY,
-                      label: category || "Diğer",
-                    };
-                    const isExpanded = expandedCategories.includes(category);
-
-                    return (
-                      <View
-                        key={category}
-                        style={{ marginBottom: isExpanded ? 20 : 12 }}
-                      >
-                        <TouchableOpacity
-                          activeOpacity={0.8}
-                          onPress={() => toggleExpand(category)}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            backgroundColor: categoryItem.bgColor,
-                            padding: 12,
-                            borderRadius: 20,
-                            borderWidth: 1,
-                            borderColor: categoryItem.borderColor,
-                            shadowColor: categoryItem.textColor,
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.05,
-                            shadowRadius: 6,
-                            
-                          }}
-                        >
-                          <View
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 14,
-                              backgroundColor: categoryItem.iconBg,
-                              justifyContent: "center",
-                              alignItems: "center",
-                              marginRight: 12,
-                              borderWidth: 1,
-                              borderColor: categoryItem.borderColor,
-                            }}
-                          >
-                            {getPlaceCategoryImage(category) ? (
-                              <Image
-                                source={getPlaceCategoryImage(category)}
-                                style={{
-                                  width: 20,
-                                  height: 20,
-                                  resizeMode: "contain",
-                                }}
-                              />
-                            ) : (
-                              <Ionicons
-                                name="grid-outline"
-                                size={18}
-                                color={categoryItem.textColor}
-                              />
-                            )}
-                          </View>
-
-                          <Text
-                            style={{
-                              fontSize: 17,
-                              fontWeight: "800",
-                              color: categoryItem.textColor,
-                              flex: 1,
-                            }}
-                          >
-                            {categoryItem.label}
-                          </Text>
-
-                          <View
-                            style={{
-                              backgroundColor: "rgba(255,255,255,0.65)",
-                              paddingHorizontal: 10,
-                              paddingVertical: 4,
-                              borderRadius: 12,
-                              marginRight: 10,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 13,
-                                fontWeight: "900",
-                                color: categoryItem.textColor,
-                              }}
-                            >
-                              {groupedPlaces[category].length}
-                            </Text>
-                          </View>
-
-                          <Ionicons
-                            name={isExpanded ? "chevron-up" : "chevron-down"}
-                            size={20}
-                            color={categoryItem.textColor}
-                            style={{ marginRight: 4, opacity: 0.7 }}
-                          />
-                        </TouchableOpacity>
-
-                        {isExpanded && (
-                          <View style={{ marginTop: 12, paddingHorizontal: 2 }}>
-                            {groupedPlaces[category].map((item) => (
-                              <PlaceCard
-                                key={String(item.id)}
-                                place={item}
-                                category={category}
-                                onPress={() =>
-                                  navigation.navigate("PlaceDetail", {
-                                    placeId: item.id,
-                                  })
-                                }
-                                onMapPress={() =>
-                                  navigation.navigate("MapTab", {
-                                    targetPlaceId: item.id,
-                                  })
-                                }
-                                onReviewPress={() =>
-                                  navigation.navigate("EditReview", {
-                                    placeId: item.id,
-                                  })
-                                }
-                                onPhotoPress={() =>
-                                  navigation.navigate("UploadPhoto", {
-                                    placeId: item.id,
-                                  })
-                                }
-                              />
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
+                  {filteredPlaces.map((item) => (
+                    <PlaceCard
+                      key={String(item.id)}
+                      place={item}
+                      category={item.category || "Other"}
+                      onPress={() =>
+                        navigation.navigate("PlaceDetail", {
+                          placeId: item.id,
+                        })
+                      }
+                      onMapPress={() =>
+                        navigation.navigate("MapTab", {
+                          targetPlaceId: item.id,
+                        })
+                      }
+                      onReviewPress={() =>
+                        navigation.navigate("EditReview", {
+                          placeId: item.id,
+                        })
+                      }
+                      onPhotoPress={() =>
+                        navigation.navigate("UploadPhoto", {
+                          placeId: item.id,
+                        })
+                      }
+                    />
+                  ))}
                 </View>
               )}
             </ScrollView>
@@ -985,61 +820,6 @@ export default function HomeScreen({ navigation }: any) {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 24 }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "800",
-                        color: COLORS.textMuted,
-                        marginBottom: 12,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Ziyaret Durumu
-                    </Text>
-
-                    <View
-                      style={{ flexDirection: "row", gap: 10, marginBottom: 24 }}
-                    >
-                      {[
-                        { id: "all", label: "Tümü" },
-                        { id: "visited", label: "Gidilenler" },
-                        { id: "wishlist", label: "İstek Listesi" },
-                      ].map((stat) => (
-                        <TouchableOpacity
-                          key={stat.id}
-                          onPress={() => setStatusFilter(stat.id as any)}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 12,
-                            alignItems: "center",
-                            borderRadius: 16,
-                            backgroundColor:
-                              statusFilter === stat.id
-                                ? COLORS.primarySoft
-                                : COLORS.surfaceSoft,
-                            borderWidth: 1,
-                            borderColor:
-                              statusFilter === stat.id
-                                ? COLORS.primary
-                                : COLORS.border,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontWeight: "700",
-                              fontSize: 13,
-                              color:
-                                statusFilter === stat.id
-                                  ? COLORS.primaryDark
-                                  : COLORS.textMuted,
-                            }}
-                          >
-                            {stat.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
                     <Text
                       style={{
                         fontSize: 14,
@@ -1303,7 +1083,7 @@ export default function HomeScreen({ navigation }: any) {
                             }}
                           >
                             <Ionicons
-                              name={group.selectedIconsJson || "planet"}
+                              name={group.selectedIconsJson as any || "planet"}
                               size={20}
                               color="white"
                             />
@@ -1372,6 +1152,59 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.iconMapBg,
     justifyContent: "center",
     alignItems: "center",
+  },
+  actionBtnCompact: {
+    width: 30,
+    height: 30,
+    borderRadius: 14,
+    backgroundColor: COLORS.iconMapBg,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  metaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 3,
+  },
+  metaChipText: {
+    fontSize: 11.5,
+    color: COLORS.textMuted,
+    fontWeight: "700",
+  },
+  inlineRatingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF7E6",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
+    gap: 3,
+  },
+  inlineRatingText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#B45309",
+  },
+  photoCountBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15,23,42,0.7)",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 2,
+  },
+  photoCountText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#ffffff",
   },
   fabPrimary: {
     width: 64,

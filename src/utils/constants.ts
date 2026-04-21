@@ -1,11 +1,13 @@
-export const API_BASE_URL = "https://togetherbackend-bwrq.onrender.com/api";
+import { ImageSourcePropType } from "react-native";
+import { GroupselectedIconsJson } from "../types/group";
+
+export const API_BASE_URL = "http://192.168.1.12:5183/api";
+export const SUPPORT_EMAIL = "togetherappinfo@gmail.com";
 export const STORAGE_KEYS = {
     token: "token",
     refreshToken: "refreshToken",
     selectedGroupId: "selectedGroupId",
 } as const;
-
-import { ImageSourcePropType } from "react-native";
 
 export const EN_PLACE_CATEGORIES = [
   { label: "Cafe", value: "cafe", icon: "cafe-outline" },
@@ -197,8 +199,6 @@ export const PLACE_CATEGORIES: PlaceCategoryItem[] = [
   iconBg: "#E6DBF2",
 },
 ];
-
-import { GroupselectedIconsJson } from "../types/group";
 
 export const GROUP_AVATAR_ICONS: {
   key: GroupselectedIconsJson;

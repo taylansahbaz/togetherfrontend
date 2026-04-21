@@ -4,6 +4,8 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
+  Easing,
   FlatList,
   PanResponder,
   RefreshControl,
@@ -20,8 +22,51 @@ import {
   getMyNotifications,
   markNotificationAsRead,
   rejectNotificationInvite,
+  respondWishDayFromNotification,
 } from "../../api/notification";
 import CustomAlert from "../../components/common/CustomAlert";
+import { formatDate as formatDateTurkish } from "../../utils/date";
+
+interface NotificationIconMeta {
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  bg: string;
+}
+
+const getNotificationIconMeta = (type: string): NotificationIconMeta => {
+  switch (type) {
+    case "WishDayInvite":
+    case "WishDayUpdated":
+    case "WishDayReminder":
+      return { icon: "heart-sharp", color: "#dc2626", bg: "#fee2e2" };
+    case "WishDayCancelled":
+      return { icon: "calendar-outline", color: "#7c2d12", bg: "#fee2e2" };
+    case "WishDayRsvpResponse":
+      return { icon: "chatbox-ellipses-outline", color: "#2563eb", bg: "#dbeafe" };
+    case "GroupInvite":
+      return { icon: "people-outline", color: "#7c3aed", bg: "#ede9fe" };
+    case "GroupInviteAccepted":
+      return { icon: "checkmark-circle-outline", color: "#16a34a", bg: "#dcfce7" };
+    case "GroupInviteRejected":
+      return { icon: "close-circle-outline", color: "#dc2626", bg: "#fee2e2" };
+    case "GroupMemberAdded":
+      return { icon: "person-add-outline", color: "#0ea5e9", bg: "#e0f2fe" };
+    case "GroupMemberLeft":
+      return { icon: "person-remove-outline", color: "#475569", bg: "#e2e8f0" };
+    case "OwnershipTransferred":
+      return { icon: "key-outline", color: "#ca8a04", bg: "#fef9c3" };
+    case "PlaceCreated":
+      return { icon: "location-outline", color: "#0d9488", bg: "#ccfbf1" };
+    case "PlacePhotoAdded":
+      return { icon: "image-outline", color: "#db2777", bg: "#fce7f3" };
+    case "PlaceReviewAdded":
+      return { icon: "star-outline", color: "#d97706", bg: "#fef3c7" };
+    case "PlaceMarkedVisited":
+      return { icon: "flag-outline", color: "#16a34a", bg: "#dcfce7" };
+    default:
+      return { icon: "notifications-outline", color: "#51627E", bg: "#F1F5F9" };
+  }
+};
 
 const formatDate = (dateString: string) => {
   try {
@@ -48,46 +93,83 @@ export interface NotificationItem {
   canRespond: boolean;
   groupName?: string | null;
   invitedByName?: string | null;
+  placeId?: string | null;
+  placeTitle?: string | null;
+  placeVisitDate?: string | null;
+  rsvpResponse?: string | null;
 }
+
+type WishDayRsvpChoice = "Accepted" | "Maybe" | "Rejected";
 
 interface SwipeableNotificationCardProps {
   item: NotificationItem;
   processingId: string | null;
+  processingChoice: WishDayRsvpChoice | null;
   onMarkAsRead: (id: string) => void;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onDelete: (id: string) => void;
+  onOpenPlace: (placeId: string) => void;
+  onWishDayRespond: (id: string, response: WishDayRsvpChoice) => void;
   renderInviteStatus: (item: NotificationItem) => React.ReactNode;
   formatDate: (dateString: string) => string;
 }
 
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const COMMIT_THRESHOLD = SCREEN_WIDTH * 0.28;
+const VELOCITY_THRESHOLD = 0.35;
+
 const SwipeableNotificationCard = ({
   item,
   processingId,
+  processingChoice,
   onMarkAsRead,
   onAccept,
   onReject,
   onDelete,
+  onOpenPlace,
+  onWishDayRespond,
   renderInviteStatus,
   formatDate,
 }: SwipeableNotificationCardProps) => {
   const panX = useRef(new Animated.Value(0)).current;
+  const heightProgress = useRef(new Animated.Value(1)).current;
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+  const isDeletingRef = useRef(false);
 
   const resetCardPosition = () => {
     Animated.spring(panX, {
       toValue: 0,
       useNativeDriver: true,
-      bounciness: 0,
+      tension: 40,
+      friction: 10,
+      restDisplacementThreshold: 0.5,
+      restSpeedThreshold: 0.5,
     }).start();
   };
 
-  const deleteCard = () => {
+  const deleteCard = (fromX: number = 0) => {
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
+
+    // remaining distance left to slide
+    const remaining = SCREEN_WIDTH + fromX; // fromX is negative
+    const slideDuration = Math.max(140, Math.min(220, remaining * 0.6));
+
     Animated.timing(panX, {
-      toValue: -420,
-      duration: 220,
+      toValue: -SCREEN_WIDTH,
+      duration: slideDuration,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
-      onDelete(item.id);
+      Animated.timing(heightProgress, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: false,
+      }).start(() => {
+        onDelete(item.id);
+      });
     });
   };
 
@@ -95,48 +177,105 @@ const SwipeableNotificationCard = ({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dx) > 12 &&
-        Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        !isDeletingRef.current &&
+        Math.abs(gestureState.dx) > 8 &&
+        Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2,
+
+      onPanResponderTerminationRequest: () => false,
 
       onPanResponderMove: (_, gestureState) => {
+        if (isDeletingRef.current) return;
         if (gestureState.dx < 0) {
+          // follow finger 1:1 on left swipe (no resistance)
           panX.setValue(gestureState.dx);
         } else {
-          panX.setValue(0);
+          // strong resistance on right swipe, clamped
+          panX.setValue(Math.min(gestureState.dx * 0.12, 14));
         }
       },
 
       onPanResponderRelease: (_, gestureState) => {
+        if (isDeletingRef.current) return;
         const shouldDelete =
-          gestureState.dx < -90 || gestureState.vx < -0.6;
+          gestureState.dx < -COMMIT_THRESHOLD ||
+          (gestureState.dx < -30 && gestureState.vx < -VELOCITY_THRESHOLD);
 
         if (shouldDelete) {
-          deleteCard();
+          deleteCard(gestureState.dx);
         } else {
           resetCardPosition();
         }
       },
 
       onPanResponderTerminate: () => {
-        resetCardPosition();
+        if (!isDeletingRef.current) resetCardPosition();
       },
     })
   ).current;
 
   const isInvite = item.type === "GroupInvite";
+  const isWishDay = item.type === "WishDayInvite";
   const isProcessing = processingId === item.id;
 
+  const iconMeta = getNotificationIconMeta(item.type);
+  const cardIconName = iconMeta.icon;
+
+  // progressive reveal for background trash icon
+  const bgOpacity = panX.interpolate({
+    inputRange: [-COMMIT_THRESHOLD, -12, 0],
+    outputRange: [1, 0.2, 0],
+    extrapolate: "clamp",
+  });
+  // icon noticeably "pops" once user crosses commit threshold
+  const trashScale = panX.interpolate({
+    inputRange: [-COMMIT_THRESHOLD - 1, -COMMIT_THRESHOLD, -40, 0],
+    outputRange: [1.25, 1.1, 0.85, 0.65],
+    extrapolate: "clamp",
+  });
+  const cardShadowOpacity = panX.interpolate({
+    inputRange: [-COMMIT_THRESHOLD, 0],
+    outputRange: [0.18, 0.09],
+    extrapolate: "clamp",
+  });
+
   return (
-    <View style={styles.swipeableWrapper}>
-      <View style={styles.deleteBackground}>
-        <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
-      </View>
+    <Animated.View
+      onLayout={(e) => {
+        const h = e.nativeEvent.layout.height;
+        if (measuredHeight === null && h > 0) {
+          setMeasuredHeight(h);
+        }
+      }}
+      style={[
+        styles.swipeableWrapper,
+        measuredHeight !== null && {
+          height: heightProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, measuredHeight],
+          }),
+          marginBottom: heightProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 14],
+          }),
+          opacity: heightProgress.interpolate({
+            inputRange: [0, 0.6, 1],
+            outputRange: [0, 1, 1],
+          }),
+        },
+      ]}
+    >
+      <Animated.View style={[styles.deleteBackground, { opacity: bgOpacity }]}>
+        <Animated.View style={{ transform: [{ scale: trashScale }] }}>
+          <Ionicons name="trash" size={22} color="#FFFFFF" />
+        </Animated.View>
+      </Animated.View>
 
       <Animated.View
         style={[
           styles.swipeableCard,
           {
             transform: [{ translateX: panX }],
+            shadowOpacity: cardShadowOpacity,
           },
         ]}
         {...panResponder.panHandlers}
@@ -146,14 +285,35 @@ const SwipeableNotificationCard = ({
           style={[styles.card, !item.isRead && styles.unreadCard]}
           onPress={() => {
             if (!item.isRead) onMarkAsRead(item.id);
+            if (isWishDay && item.placeId) {
+              onOpenPlace(item.placeId);
+              return;
+            }
+            // Place-related notifications open the place detail if we know the id
+            const placeRelatedTypes = [
+              "WishDayRsvpResponse",
+              "WishDayUpdated",
+              "WishDayCancelled",
+              "WishDayReminder",
+              "PlaceCreated",
+              "PlacePhotoAdded",
+              "PlaceReviewAdded",
+              "PlaceMarkedVisited",
+            ];
+            if (
+              placeRelatedTypes.includes(item.type) &&
+              item.relatedEntityId
+            ) {
+              onOpenPlace(item.relatedEntityId);
+            }
           }}
         >
           <View style={styles.cardHeader}>
-            <View style={styles.iconBox}>
+            <View style={[styles.iconBox, { backgroundColor: iconMeta.bg }]}>
               <Ionicons
-                name={isInvite ? "people-outline" : "notifications-outline"}
+                name={cardIconName}
                 size={20}
-                color="#51627E"
+                color={iconMeta.color}
               />
             </View>
 
@@ -180,7 +340,7 @@ const SwipeableNotificationCard = ({
                 {" "} katılmaya davet etti.
               </Text>
 
-              <Text style={styles.inviteSubText}>{item.message}</Text>
+            
 
               {renderInviteStatus(item)}
 
@@ -224,12 +384,139 @@ const SwipeableNotificationCard = ({
                 </View>
               )}
             </View>
+          ) : isWishDay ? (
+            <View style={styles.inviteBody}>
+              <Text style={styles.inviteMainText}>
+                <Text style={styles.boldText}>
+                  {item.groupName || "Grubunda"}
+                </Text>
+                {" grubuyla "}
+                {item.placeVisitDate ? (
+                  <>
+                    <Text style={styles.boldText}>
+                      {formatDateTurkish(item.placeVisitDate)}
+                    </Text>
+                    {" günü "}
+                  </>
+                ) : (
+                  ""
+                )}
+                yeni bir planın var 🥳
+                {item.placeTitle ? (
+                  <>
+                    {" "}
+                    <Text style={styles.boldText}>{item.placeTitle}</Text>
+                  </>
+                ) : (
+                  ""
+                )}
+              </Text>
+
+              {item.rsvpResponse &&
+                item.rsvpResponse !== "NotResponded" && (
+                  <View
+                    style={[
+                      styles.statusChip,
+                      item.rsvpResponse === "Accepted"
+                        ? styles.acceptedChip
+                        : item.rsvpResponse === "Rejected"
+                          ? styles.rejectedChip
+                          : styles.maybeChip,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusChipText,
+                        item.rsvpResponse === "Accepted"
+                          ? styles.acceptedChipText
+                          : item.rsvpResponse === "Rejected"
+                            ? styles.rejectedChipText
+                            : styles.maybeChipText,
+                      ]}
+                    >
+                      Cevabın:{" "}
+                      {item.rsvpResponse === "Accepted"
+                        ? "Katılıyorum"
+                        : item.rsvpResponse === "Rejected"
+                          ? "Katılmıyorum"
+                          : "Bilmiyorum"}
+                    </Text>
+                  </View>
+                )}
+
+              <View style={styles.wishDayActionRow}>
+                {(
+                  [
+                    {
+                      choice: "Accepted",
+                      label: "Katılırım",
+                      color: "#16a34a",
+                      icon: "checkmark-circle",
+                    },
+                    {
+                      choice: "Maybe",
+                      label: "Bilmiyorum",
+                      color: "#d97706",
+                      icon: "help-circle",
+                    },
+                    {
+                      choice: "Rejected",
+                      label: "Katılmam",
+                      color: "#dc2626",
+                      icon: "close-circle",
+                    },
+                  ] as const
+                ).map((btn) => {
+                  const isSelected = item.rsvpResponse === btn.choice;
+                  const isBusy =
+                    isProcessing && processingChoice === btn.choice;
+                  return (
+                    <TouchableOpacity
+                      key={btn.choice}
+                      activeOpacity={0.85}
+                      disabled={isProcessing}
+                      onPress={() => onWishDayRespond(item.id, btn.choice)}
+                      style={[
+                        styles.wishDayButton,
+                        { borderColor: btn.color },
+                        isSelected && {
+                          backgroundColor: btn.color,
+                        },
+                      ]}
+                    >
+                      {isBusy ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={isSelected ? "#fff" : btn.color}
+                        />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name={btn.icon as keyof typeof Ionicons.glyphMap}
+                            size={14}
+                            color={isSelected ? "#fff" : btn.color}
+                          />
+                          <Text
+                            style={[
+                              styles.wishDayButtonText,
+                              { color: isSelected ? "#fff" : btn.color },
+                            ]}
+                          >
+                            {btn.label}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           ) : (
             <Text style={styles.normalMessage}>{item.message}</Text>
           )}
         </TouchableOpacity>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -240,6 +527,8 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [processingChoice, setProcessingChoice] =
+    useState<WishDayRsvpChoice | null>(null);
 
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertTitle, setAlertTitle] = useState("Bilgi");
@@ -412,6 +701,56 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handleOpenPlace = (placeId: string) => {
+    (navigation as any).navigate("PlaceDetail", { placeId });
+  };
+
+  const handleWishDayRespond = async (
+    notificationId: string,
+    response: WishDayRsvpChoice
+  ) => {
+    try {
+      setProcessingId(notificationId);
+      setProcessingChoice(response);
+
+      const result = await respondWishDayFromNotification(
+        notificationId,
+        response
+      );
+
+      if (result.success) {
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.id === notificationId
+              ? { ...item, isRead: true, rsvpResponse: response }
+              : item
+          )
+        );
+
+        showAlert(
+          "Başarılı",
+          response === "Accepted"
+            ? "Katılımın kaydedildi."
+            : response === "Maybe"
+              ? "Cevabın 'Bilmiyorum' olarak kaydedildi."
+              : "Cevabın 'Katılmam' olarak kaydedildi.",
+          "success"
+        );
+      } else {
+        showAlert(
+          "Hata",
+          result.message || "Yanıt kaydedilemedi.",
+          "danger"
+        );
+      }
+    } catch {
+      showAlert("Hata", "Yanıt kaydedilirken bir hata oluştu.", "danger");
+    } finally {
+      setProcessingId(null);
+      setProcessingChoice(null);
+    }
+  };
+
   const renderInviteStatus = (item: NotificationItem) => {
     if (item.type !== "GroupInvite" || item.canRespond || !item.inviteStatus) {
       return null;
@@ -442,10 +781,13 @@ export default function NotificationsScreen() {
     <SwipeableNotificationCard
       item={item}
       processingId={processingId}
+      processingChoice={processingChoice}
       onMarkAsRead={handleMarkAsRead}
       onAccept={handleAccept}
       onReject={handleReject}
       onDelete={handleDelete}
+      onOpenPlace={handleOpenPlace}
+      onWishDayRespond={handleWishDayRespond}
       renderInviteStatus={renderInviteStatus}
       formatDate={formatDate}
     />
@@ -645,15 +987,18 @@ const styles = StyleSheet.create({
 
   deleteBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#ff9595",
+    backgroundColor: "#ef4444",
     justifyContent: "center",
     alignItems: "flex-end",
-    paddingRight: 24,
+    paddingRight: 28,
     borderRadius: 24,
   },
 
   swipeableCard: {
     zIndex: 1,
+    shadowColor: "#6F7D95",
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
   },
 
   card: {
@@ -721,7 +1066,7 @@ const styles = StyleSheet.create({
 
   inviteBody: {
     marginTop: 14,
-    marginLeft: 58,
+    marginLeft: 0,
   },
 
   inviteMainText: {
@@ -807,6 +1152,38 @@ const styles = StyleSheet.create({
 
   rejectedChipText: {
     color: "#B45B6A",
+  },
+
+  maybeChip: {
+    backgroundColor: "#FEF3C7",
+  },
+
+  maybeChipText: {
+    color: "#B45309",
+  },
+
+  wishDayActionRow: {
+    flexDirection: "row",
+    marginTop: 14,
+    gap: 8,
+  },
+
+  wishDayButton: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    backgroundColor: "white",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: 4,
+  },
+
+  wishDayButtonText: {
+    fontSize: 12,
+    fontWeight: "800",
   },
 
   emptyContainer: {

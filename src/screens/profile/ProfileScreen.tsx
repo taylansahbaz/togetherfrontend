@@ -197,9 +197,9 @@ export default function ProfileScreen() {
                         onPress={() => navigation.navigate("Groups")}
                     >
                         <View
-                            style={[styles.menuIconBox, { backgroundColor: "#e2e8f0" }]}
+                            style={[styles.menuIconBox, { backgroundColor: "#ccfbf1" }]}
                         >
-                            <Ionicons name="people" size={20} color="#334155" />
+                            <Ionicons name="people" size={20} color="#0d9488" />
                         </View>
                         <View style={styles.menuTextContainer}>
                             <Text style={styles.menuTitle}>Gruplarım ve Partnerlerim</Text>
@@ -211,19 +211,20 @@ export default function ProfileScreen() {
                         />
                     </TouchableOpacity>
 
+
                     <View style={styles.menuDivider} />
 
                     <TouchableOpacity
+                        onPress={() => navigation.navigate("MyBills")}
                         style={styles.menuItem}
-                        onPress={() => navigation.navigate("AccountSettings")}
                     >
                         <View
-                            style={[styles.menuIconBox, { backgroundColor: "#e2e8f0" }]}
+                            style={[styles.menuIconBox, { backgroundColor: "#ede9fe" }]}
                         >
-                            <Ionicons name="settings" size={20} color="#334155" />
+                            <Ionicons name="calculator" size={20} color="#7c3aed" />
                         </View>
                         <View style={styles.menuTextContainer}>
-                            <Text style={styles.menuTitle}>Hesap Ayarları</Text>
+                            <Text style={styles.menuTitle}>Harcama Paylaş</Text>
                         </View>
                         <Ionicons
                             name="chevron-forward"
@@ -238,12 +239,12 @@ export default function ProfileScreen() {
                         onPress={() => navigation.navigate("Notifications")}
                         style={styles.menuItem}>
                         <View
-                            style={[styles.menuIconBox, { backgroundColor: "#e2e8f0" }]}
+                            style={[styles.menuIconBox, { backgroundColor: "#fef3c7" }]}
                         >
                             <Ionicons
                                 name="notifications"
                                 size={20}
-                                color="#334155"
+                                color="#d97706"
                             />
                         </View>
                         <View style={styles.menuTextContainer}>
@@ -255,17 +256,20 @@ export default function ProfileScreen() {
                             color="#cbd5e1"
                         />
                     </TouchableOpacity>
-
+                    
                     <View style={styles.menuDivider} />
 
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => navigation.navigate("AccountSettings")}
+                    >
                         <View
-                            style={[styles.menuIconBox, { backgroundColor: "#e2e8f0" }]}
+                            style={[styles.menuIconBox, { backgroundColor: "#e0e7ff" }]}
                         >
-                            <Ionicons name="help-buoy" size={20} color="#334155" />
+                            <Ionicons name="settings" size={20} color="#4f46e5" />
                         </View>
                         <View style={styles.menuTextContainer}>
-                            <Text style={styles.menuTitle}>Yardım ve Destek</Text>
+                            <Text style={styles.menuTitle}>Hesap Ayarları</Text>
                         </View>
                         <Ionicons
                             name="chevron-forward"
@@ -273,7 +277,30 @@ export default function ProfileScreen() {
                             color="#cbd5e1"
                         />
                     </TouchableOpacity>
-                    
+                    <View style={styles.menuDivider} />
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => navigation.navigate("PrivacySettings")}
+                    >
+                        <View
+                            style={[styles.menuIconBox, { backgroundColor: "#dbeafe" }]}
+                        >
+                            <Ionicons
+                                name="shield-checkmark"
+                                size={20}
+                                color="#2563eb"
+                            />
+                        </View>
+                        <View style={styles.menuTextContainer}>
+                            <Text style={styles.menuTitle}>Gizlilik ve Güvenlik</Text>
+                        </View>
+                        <Ionicons
+                            name="chevron-forward"
+                            size={20}
+                            color="#cbd5e1"
+                        />
+                    </TouchableOpacity>
                     <View style={styles.menuDivider} />
 
                     <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
@@ -398,7 +425,7 @@ const styles = StyleSheet.create({
     menuCard: {
         backgroundColor: "white",
         borderRadius: 24,
-        paddingVertical: 8,
+        paddingVertical: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
@@ -408,8 +435,8 @@ const styles = StyleSheet.create({
     menuItem: {
         flexDirection: "row",
         alignItems: "center",
-        paddingVertical: 16,
-        paddingHorizontal: 20,
+        paddingVertical: 15,
+        paddingHorizontal: 19,
     },
     menuIconBox: {
         width: 40,

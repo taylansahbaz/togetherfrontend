@@ -28,6 +28,10 @@ import {
 
 
 
+
+
+
+
     ImageBackground,
     Modal,
     Platform,
@@ -41,11 +45,26 @@ import {
     View
 } from "react-native";
 
-import { deleteGroup, getMyGroups, updateGroup } from "../../api/groups";
+import {
+    getGroupMembers,
+    getMyGroups,
+    leaveGroup,
+    transferOwnership,
+    updateGroup,
+} from "../../api/groups";
 import CustomAlert from "../../components/common/CustomAlert";
-import LoadingSpinner from "../../components/common/LoadingSpinner";
+import {
+    SkeletonGroupCard,
+    SkeletonList,
+} from "../../components/common/Skeleton";
+import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
-import { Group, GroupselectedIconsJson } from "../../types/group"; // GroupselectedIconsJson eklendi
+import {
+    Group,
+    GroupMember,
+    GroupselectedIconsJson,
+} from "../../types/group"; // GroupselectedIconsJson eklendi
+import { getApiErrorMessage } from "../../utils/helpers";
 
 const GROUP_COLORS = [
     "#6E97A3",
@@ -95,6 +114,7 @@ type AlertState = {
 };
 
 export default function GroupsScreen({ navigation }: any) {
+    const { user } = useAuth();
     const {
             selectedGroup,
             selectedGroupId,
@@ -113,6 +133,12 @@ export default function GroupsScreen({ navigation }: any) {
     const [isEditModalVisible, setIsEditModalVisible] = useState(false);
     const [editGroupName, setEditGroupName] = useState("");
     const [editing, setEditing] = useState(false);
+
+    const [isTransferModalVisible, setIsTransferModalVisible] = useState(false);
+    const [membersForTransfer, setMembersForTransfer] = useState<GroupMember[]>([]);
+    const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<string | null>(null);
+    const [loadingMembers, setLoadingMembers] = useState(false);
+    const [leaving, setLeaving] = useState(false);
 
     const [alertState, setAlertState] = useState<AlertState>({
         visible: false,
@@ -211,24 +237,25 @@ export default function GroupsScreen({ navigation }: any) {
 
         try {
             setEditing(true);
-            
-            await updateGroup(activeGroupOptions.id, {
+
+            const updated = await updateGroup(activeGroupOptions.id, {
                 name: editGroupName.trim(),
                 colorcode: activeGroupOptions.colorCode || "#6E97A3",
-                photoUrl: activeGroupOptions.photoUrl,
-                selectedIconsJson: activeGroupOptions.selectedIconsJson
+                photoUrl: activeGroupOptions.photoUrl ?? null,
+                selectedIconsJson: activeGroupOptions.selectedIconsJson ?? null,
             });
 
             setIsEditModalVisible(false);
 
             if (selectedGroupId === activeGroupOptions.id && setSelectedGroup) {
-                setSelectedGroup({
+                await setSelectedGroup({
                     ...activeGroupOptions,
+                    ...updated,
                     name: editGroupName.trim(),
                 });
             }
 
-            fetchGroups(); // Listeyi yenile
+            await fetchGroups();
 
             showAlert({
                 title: "Başarılı",
@@ -238,7 +265,7 @@ export default function GroupsScreen({ navigation }: any) {
         } catch (error) {
             showAlert({
                 title: "Hata",
-                message: "Grup adı güncellenemedi.",
+                message: getApiErrorMessage(error) || "Grup adı güncellenemedi.",
                 type: "danger",
             });
         } finally {
@@ -246,44 +273,146 @@ export default function GroupsScreen({ navigation }: any) {
         }
     };
 
-    const handleDeleteGroupConfirmed = async () => {
+    const performLeaveGroup = async () => {
         if (!activeGroupOptions) return;
 
         try {
-            setLoading(true);
-            await deleteGroup(activeGroupOptions.id);
+            setLeaving(true);
+            await leaveGroup(activeGroupOptions.id);
 
             if (selectedGroupId === activeGroupOptions.id && setSelectedGroup) {
-                setSelectedGroup(null);
+                await setSelectedGroup(null);
             }
 
-            fetchGroups();
+            setIsTransferModalVisible(false);
+            setSelectedNewOwnerId(null);
+            setMembersForTransfer([]);
+            setActiveGroupOptions(null);
+
+            await fetchGroups();
+
+            showAlert({
+                title: "Ayrıldın",
+                message: "Gruptan başarıyla ayrıldın.",
+                type: "success",
+            });
         } catch (error) {
             showAlert({
                 title: "Hata",
-                message: "Grup silinemedi.",
+                message:
+                    getApiErrorMessage(error) || "Gruptan ayrılırken bir sorun oluştu.",
                 type: "danger",
             });
-            setLoading(false);
+        } finally {
+            setLeaving(false);
         }
     };
 
-    const confirmDeleteGroup = () => {
-        if (!activeGroupOptions) return;
+    const handleTransferAndLeave = async () => {
+        if (!activeGroupOptions || !selectedNewOwnerId) {
+            showAlert({
+                title: "Seçim Yapılmadı",
+                message: "Lütfen yeni grup sahibi olacak üyeyi seç.",
+                type: "info",
+            });
+            return;
+        }
+
+        try {
+            setLeaving(true);
+            await transferOwnership(activeGroupOptions.id, selectedNewOwnerId);
+            await leaveGroup(activeGroupOptions.id);
+
+            if (selectedGroupId === activeGroupOptions.id && setSelectedGroup) {
+                await setSelectedGroup(null);
+            }
+
+            setIsTransferModalVisible(false);
+            setSelectedNewOwnerId(null);
+            setMembersForTransfer([]);
+            setActiveGroupOptions(null);
+
+            await fetchGroups();
+
+            showAlert({
+                title: "Tamamlandı",
+                message:
+                    "Sahiplik transfer edildi ve gruptan ayrıldın.",
+                type: "success",
+            });
+        } catch (error) {
+            showAlert({
+                title: "Hata",
+                message:
+                    getApiErrorMessage(error) ||
+                    "Sahiplik transfer edilirken bir sorun oluştu.",
+                type: "danger",
+            });
+        } finally {
+            setLeaving(false);
+        }
+    };
+
+    const confirmLeaveGroup = async () => {
+        if (!activeGroupOptions || !user?.id) return;
 
         setIsOptionsModalVisible(false);
 
-        setTimeout(() => {
+        const isOwner = activeGroupOptions.createdByUserId === user.id;
+
+        if (!isOwner) {
+            setTimeout(() => {
+                showAlert({
+                    title: "Gruptan Ayrıl",
+                    message: `"${activeGroupOptions.name}" grubundan ayrılmak istediğine emin misin?`,
+                    type: "danger",
+                    confirmText: "Ayrıl",
+                    cancelText: "İptal",
+                    showCancelButton: true,
+                    onConfirm: performLeaveGroup,
+                });
+            }, 300);
+            return;
+        }
+
+        // Owner: fetch members to pick new owner
+        try {
+            setLoadingMembers(true);
+            const members = await getGroupMembers(activeGroupOptions.id);
+            const others = (members ?? []).filter(
+                (m) => m.userId !== user.id
+            );
+            setMembersForTransfer(others);
+            setSelectedNewOwnerId(null);
+
+            if (others.length === 0) {
+                setTimeout(() => {
+                    showAlert({
+                        title: "Grupta Başka Üye Yok",
+                        message:
+                            "Sen tek üyesin, dolayısıyla ayrıldığında grup otomatik olarak silinecek. Emin misin?",
+                            
+                        type: "danger",
+                        confirmText: "Ayrıl ve Sil",
+                        cancelText: "İptal",
+                        showCancelButton: true,
+                        onConfirm: performLeaveGroup,
+                    });
+                }, 300);
+                return;
+            }
+
+            setTimeout(() => setIsTransferModalVisible(true), 300);
+        } catch (error) {
             showAlert({
-                title: "Grubu Sil",
-                message: `"${activeGroupOptions.name}" grubunu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+                title: "Hata",
+                message:
+                    getApiErrorMessage(error) || "Grup üyeleri yüklenemedi.",
                 type: "danger",
-                confirmText: "Sil",
-                cancelText: "İptal",
-                showCancelButton: true,
-                onConfirm: handleDeleteGroupConfirmed,
             });
-        }, 300);
+        } finally {
+            setLoadingMembers(false);
+        }
     };
 
     // İkon ismini eşleştiren yardımcı fonksiyon
@@ -444,9 +573,12 @@ export default function GroupsScreen({ navigation }: any) {
                        
 
                         {loading && !refreshing ? (
-                            <View style={styles.centerContainer}>
-                                <LoadingSpinner />
-                            </View>
+                            <SkeletonList
+                                count={4}
+                                spacing={12}
+                                style={{ paddingHorizontal: 16, paddingTop: 8 }}
+                                renderItem={() => <SkeletonGroupCard />}
+                            />
                         ) : (
                             <FlatList
                                 data={groups}
@@ -526,19 +658,28 @@ export default function GroupsScreen({ navigation }: any) {
                                             });
                                         }}
                                     >
-                                        <Ionicons name="people" size={20} color="#F59E0B" />
-                                        <Text style={styles.optionText}>Grubu Yönet</Text>
+                                        <Ionicons name="information-circle" size={20} color="#F59E0B" />
+                                        <Text style={styles.optionText}>Grup Detayları</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
                                         style={[styles.optionItem, { borderBottomWidth: 0 }]}
-                                        onPress={confirmDeleteGroup}
+                                        onPress={confirmLeaveGroup}
+                                        disabled={loadingMembers}
                                     >
-                                        <Ionicons name="trash" size={20} color="#ef4444" />
+                                        {loadingMembers ? (
+                                            <ActivityIndicator size="small" color="#ef4444" />
+                                        ) : (
+                                            <Ionicons
+                                                name="exit-sharp"
+                                                size={20}
+                                                color="#ef4444"
+                                            />
+                                        )}
                                         <Text
                                             style={[styles.optionText, { color: "#ef4444" }]}
                                         >
-                                            Grubu Sil
+                                            Gruptan Ayrıl
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -589,6 +730,152 @@ export default function GroupsScreen({ navigation }: any) {
                                     </View>
                                 </View>
                             </View>
+                        </Modal>
+
+                        {/* GRUP SAHİPLİĞİ TRANSFER MODALI */}
+                        <Modal
+                            visible={isTransferModalVisible}
+                            transparent={true}
+                            animationType="slide"
+                            onRequestClose={() => {
+                                if (!leaving) {
+                                    setIsTransferModalVisible(false);
+                                    setSelectedNewOwnerId(null);
+                                }
+                            }}
+                        >
+                            <Pressable
+                                style={styles.modalOverlay}
+                                onPress={() => {
+                                    if (!leaving) {
+                                        setIsTransferModalVisible(false);
+                                        setSelectedNewOwnerId(null);
+                                    }
+                                }}
+                            >
+                                <Pressable
+                                    onPress={() => {}}
+                                    style={styles.transferSheet}
+                                >
+                                    <View style={styles.transferHandle} />
+
+                                    <Text style={styles.transferTitle}>
+                                        Grup Sahipliğini Devret
+                                    </Text>
+                                    <Text style={styles.transferSubtitle}>
+                                        {activeGroupOptions?.name
+                                            ? `"${activeGroupOptions.name}" grubundan ayrılmadan önce, yeni sahibi seç:`
+                                            : "Yeni grup sahibi olacak üyeyi seç:"}
+                                    </Text>
+
+                                    <FlatList
+                                        data={membersForTransfer}
+                                        keyExtractor={(m) => m.userId}
+                                        style={{ maxHeight: 320 }}
+                                        contentContainerStyle={{ paddingVertical: 4 }}
+                                        renderItem={({ item }) => {
+                                            const isActive =
+                                                selectedNewOwnerId === item.userId;
+                                            return (
+                                                <TouchableOpacity
+                                                    activeOpacity={0.85}
+                                                    onPress={() =>
+                                                        setSelectedNewOwnerId(item.userId)
+                                                    }
+                                                    style={[
+                                                        styles.transferMemberRow,
+                                                        isActive
+                                                            ? styles.transferMemberRowActive
+                                                            : null,
+                                                    ]}
+                                                >
+                                                    <View
+                                                        style={styles.transferMemberAvatar}
+                                                    >
+                                                        {item.photoUrl ? (
+                                                            <Image
+                                                                source={{
+                                                                    uri: item.photoUrl,
+                                                                }}
+                                                                style={{
+                                                                    width: "100%",
+                                                                    height: "100%",
+                                                                    borderRadius: 20,
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <Ionicons
+                                                                name="person"
+                                                                size={18}
+                                                                color="#fff"
+                                                            />
+                                                        )}
+                                                    </View>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text
+                                                            style={styles.transferMemberName}
+                                                            numberOfLines={1}
+                                                        >
+                                                            {item.name}
+                                                        </Text>
+                                                        <Text
+                                                            style={styles.transferMemberEmail}
+                                                            numberOfLines={1}
+                                                        >
+                                                            {item.email}
+                                                        </Text>
+                                                    </View>
+                                                    {isActive && (
+                                                        <Ionicons
+                                                            name="checkmark-circle"
+                                                            size={22}
+                                                            color="#2F7E8D"
+                                                        />
+                                                    )}
+                                                </TouchableOpacity>
+                                            );
+                                        }}
+                                    />
+
+                                    <View style={styles.transferActions}>
+                                        <TouchableOpacity
+                                            style={styles.modalCancelBtn}
+                                            onPress={() => {
+                                                setIsTransferModalVisible(false);
+                                                setSelectedNewOwnerId(null);
+                                            }}
+                                            disabled={leaving}
+                                        >
+                                            <Text style={styles.modalCancelText}>
+                                                İptal
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.modalCreateBtn,
+                                                {
+                                                    backgroundColor: selectedNewOwnerId
+                                                        ? "#ef4444"
+                                                        : "#cbd5e1",
+                                                },
+                                            ]}
+                                            onPress={handleTransferAndLeave}
+                                            disabled={!selectedNewOwnerId || leaving}
+                                        >
+                                            {leaving ? (
+                                                <ActivityIndicator
+                                                    size="small"
+                                                    color="white"
+                                                />
+                                            ) : (
+                                                <Text style={styles.modalCreateText}>
+                                                    Devret ve Ayrıl
+                                                </Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                </Pressable>
+                            </Pressable>
                         </Modal>
 
                         <CustomAlert
@@ -756,6 +1043,77 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         minWidth: 100,
+    },
+    transferSheet: {
+        backgroundColor: "#ffffff",
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingTop: 12,
+        paddingHorizontal: 20,
+        paddingBottom: 24,
+        marginTop: "auto",
+    },
+    transferHandle: {
+        alignSelf: "center",
+        width: 42,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: "#E2E8F0",
+        marginBottom: 12,
+    },
+    transferTitle: {
+        fontSize: 18,
+        fontWeight: "800",
+        color: "#0f172a",
+        marginBottom: 4,
+    },
+    transferSubtitle: {
+        fontSize: 13,
+        color: "#64748b",
+        fontWeight: "500",
+        marginBottom: 14,
+    },
+    transferMemberRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        padding: 12,
+        borderRadius: 14,
+        marginBottom: 8,
+        backgroundColor: "#F8FAFC",
+        borderWidth: 1,
+        borderColor: "transparent",
+    },
+    transferMemberRowActive: {
+        backgroundColor: "#E6F4F7",
+        borderColor: "#2F7E8D",
+    },
+    transferMemberAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#2F7E8D",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 12,
+        overflow: "hidden",
+    },
+    transferMemberName: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#0f172a",
+    },
+    transferMemberEmail: {
+        fontSize: 12,
+        color: "#64748b",
+        fontWeight: "500",
+        marginTop: 2,
+    },
+    transferActions: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: 10,
+        marginTop: 12,
     },
     modalCreateText: {
         fontSize: 15,

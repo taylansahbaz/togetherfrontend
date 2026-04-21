@@ -18,6 +18,9 @@ export interface Place {
     createdByName?: string;
     createdAt: string;
     status: PlaceStatus;
+    coverPhotoUrl?: string | null;
+    photoCount?: number;
+    rating?: number | null;
 }
 
 export interface CreatePlaceRequest {
@@ -34,6 +37,7 @@ export interface CreatePlaceRequest {
 }
 
 export interface UpdatePlaceRequest {
+    groupId?: string;
     title: string;
     city: string;
     address?: string;
@@ -75,4 +79,28 @@ export interface MapPlace {
     category?: string;
     city?: string;
     groupName?: string;
+}
+
+export type WishDayRsvpResponse =
+    | "NotResponded"
+    | "Accepted"
+    | "Maybe"
+    | "Rejected";
+
+export interface WishDayRsvpMember {
+    userId: string;
+    userName: string;
+    response: WishDayRsvpResponse;
+    respondedAt?: string | null;
+}
+
+export interface WishDayRsvpSummary {
+    placeId: string;
+    acceptedCount: number;
+    maybeCount: number;
+    rejectedCount: number;
+    notRespondedCount: number;
+    totalMembers: number;
+    currentUserResponse: WishDayRsvpResponse;
+    members: WishDayRsvpMember[];
 }

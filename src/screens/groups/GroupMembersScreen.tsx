@@ -1,8 +1,10 @@
 import { GroupRole, GroupselectedIconsJson } from "@/src/types/group";
 import { Ionicons } from "@expo/vector-icons";
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useMemo, useState } from "react";
+
 import {
   ActivityIndicator,
   FlatList,
@@ -25,6 +27,7 @@ import {
   inviteGroupMember, // Eklenen API metodu
   leaveGroup,
   removeGroupMember,
+  transferOwnership,
   updateGroup,
 } from "../../api/groups";
 import CustomAlert from "../../components/common/CustomAlert";
@@ -352,7 +355,7 @@ export default function GroupMembersScreen() {
   const handleRemoveMember = (memberUserId: string, memberName: string) => {
     showAlert({
       title: "Üyeyi Çıkar",
-      message: `"${memberName}" adlı kullanıcıyı gruptan çıkarmak istediğine emin misin?`,
+      message: `${memberName.charAt(0).toUpperCase() + memberName.slice(1)} adlı kullanıcıyı gruptan çıkarmak istediğine emin misin?`,
       type: "danger",
       confirmText: "Çıkar",
       cancelText: "Vazgeç",
@@ -365,6 +368,38 @@ export default function GroupMembersScreen() {
         } catch (error) {
           setLoading(false);
           showAlert({ title: "Hata", message: "Üye gruptan çıkarılamadı.", type: "danger" });
+        }
+      },
+    });
+  };
+
+  const handleMakeOwner = (memberUserId: string, memberName: string) => {
+    showAlert({
+      title: "Grup Sahibi Yap",
+      message: `${memberName.charAt(0).toUpperCase() + memberName.slice(1)} adlı kullanıcıyı grubun yeni sahibi yapmak istediğine emin misin?`,
+      type: "info",
+      confirmText: "Sahibi Yap",
+      cancelText: "Vazgeç",
+      showCancelButton: true,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await transferOwnership(groupId, memberUserId);
+          await loadData();
+          showAlert({
+            title: "Başarılı",
+            message: `Grup sahipliği ${memberName.charAt(0).toUpperCase() + memberName.slice(1)} kullanıcısına devredildi.`,
+            type: "success",
+          });
+        } catch (error) {
+          setLoading(false);
+          showAlert({
+            title: "Hata",
+            message:
+              getApiErrorMessage(error) ||
+              "Grup sahipliği devredilemedi.",
+            type: "danger",
+          });
         }
       },
     });
@@ -433,7 +468,9 @@ export default function GroupMembersScreen() {
 
   const renderMemberItem = ({ item }: { item: Member }) => {
     const isCurrentUser = item.userId === user?.id;
-    const showRemoveButton = isCurrentUserOwner && !isCurrentUser;
+    const isTargetOwner = item.role === "Owner";
+    const showRemoveButton = isCurrentUserOwner && !isCurrentUser && !isTargetOwner;
+    const showMakeOwnerButton = isCurrentUserOwner && !isCurrentUser && !isTargetOwner;
 
     return (
       <View style={styles.memberCard}>
@@ -446,14 +483,33 @@ export default function GroupMembersScreen() {
           <View style={styles.memberNameRow}>
             <Text style={styles.memberName}>{item.name}</Text>
             {isCurrentUser && <View style={styles.youBadge}><Text style={styles.youBadgeText}>Sen</Text></View>}
+            {isTargetOwner && (
+              <View style={styles.ownerBadge}>
+                <FontAwesome6  name="crown" size={12} color="#09a6b4d6" />
+               
+              </View>
+            )}
           </View>
           <Text style={styles.memberEmail}>{item.email}</Text>
         </View>
-        {showRemoveButton && (
-          <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveMember(item.userId, item.name)}>
-            <Ionicons name="trash-outline" size={20} color="#ef4444" />
-          </TouchableOpacity>
-        )}
+        <View style={styles.memberActions}>
+          {showMakeOwnerButton && (
+            <TouchableOpacity
+              style={styles.makeOwnerButton}
+              onPress={() => handleMakeOwner(item.userId, item.name)}
+            >
+              <FontAwesome6 name="crown" size={16} color="#09a6b4d6" />
+            </TouchableOpacity>
+          )}
+          {showRemoveButton && (
+            <TouchableOpacity
+              style={styles.removeButton}
+              onPress={() => handleRemoveMember(item.userId, item.name)}
+            >
+              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
@@ -464,7 +520,7 @@ export default function GroupMembersScreen() {
       {/* KART 1: GRUP BİLGİLERİNİ DÜZENLE */}
       <View style={styles.card}>
         <Text style={styles.cardHeaderTitle}>Grup Bilgileri</Text>
-
+        
         {/* Avatar Bölümü */}
         <View style={styles.avatarPreviewContainer}>
           {photoUrl ? (
@@ -487,12 +543,7 @@ export default function GroupMembersScreen() {
           </Pressable>
         </View>
 
-        {(photoUrl || iconKey !== "planet") && (
-          <Pressable onPress={handleClearAvatar} style={styles.resetButton}>
-            <Ionicons name="refresh-outline" size={14} color="#ef4444" />
-            <Text style={styles.resetButtonText}>Avatarı Sıfırla</Text>
-          </Pressable>
-        )}
+       
 
         <View style={styles.divider} />
 
@@ -833,7 +884,7 @@ const styles = StyleSheet.create({
   colorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 9,
   },
   colorCircle: {
     width: 36,
@@ -1106,6 +1157,11 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginTop: 2,
   },
+  memberActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   removeButton: {
     width: 36,
     height: 36,
@@ -1113,6 +1169,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#fef2f2",
     justifyContent: "center",
     alignItems: "center",
+  },
+  makeOwnerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#fef3c7",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ownerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   leaveButton: {
     flexDirection: "row",

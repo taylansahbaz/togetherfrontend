@@ -85,6 +85,11 @@ export async function deleteAccount(): Promise<void> {
   await api.delete("/auth/delete-account");
 }
 
+export async function exportMyData(): Promise<any> {
+  const response = await api.get("/auth/export-data");
+  return response.data?.data ?? response.data;
+}
+
 export const verifyEmail = async (email: string, code: string) => {
   const response = await api.post("/auth/verify-email", { email, code });
   return response.data;

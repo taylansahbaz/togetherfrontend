@@ -26,7 +26,7 @@ export default function MainTabNavigator() {
                 tabBarIcon: ({ focused, color }) => {
                 let iconName;
                     if (route.name === "HomeTab") {
-                        iconName = focused ? "home" : "home-outline"; // İsteğe bağlı: Odaklanmadığında outline yapabilirsin
+                        iconName = focused ? "journal" : "journal-outline"; // İsteğe bağlı: Odaklanmadığında outline yapabilirsin
                     } else if (route.name === "CalendarTab") {
                         iconName = focused ? "calendar" : "calendar-outline";
                     } else if (route.name === "MapTab") {
@@ -62,7 +62,7 @@ export default function MainTabNavigator() {
         >
             <Tab.Screen name="CalendarTab" component={CalendarScreen} options={{ tabBarLabel: 'Takvim' }} />
             <Tab.Screen name="MapTab" component={MapScreen} options={{ title: "Harita" }} />
-            <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Geçmiş" }} />
+            <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ title: "Anılar" }} />
             <Tab.Screen name="WishlistTab" component={WishlistStackNavigator} options={{ title: "Planlar" }} />
             <Tab.Screen 
                 name="ProfileTab" 

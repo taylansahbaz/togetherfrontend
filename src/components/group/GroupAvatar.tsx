@@ -53,7 +53,7 @@ export default function GroupAvatar({
   );
 }
 
-function mapGroupIcon(iconKey?: GroupselectedIconsJson | null): any {
+export function mapGroupIcon(iconKey?: GroupselectedIconsJson | null): any {
   switch (iconKey) {
     case "planet":
       return "planet";

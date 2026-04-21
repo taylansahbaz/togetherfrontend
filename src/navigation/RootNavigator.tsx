@@ -5,6 +5,7 @@ import { registerPushToken } from "../api/notification";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import { useAuth } from "../hooks/useAuth";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { navigationRef } from "./NavigationRef";
 import AppStackNavigator from "./AppStackNavigator";
 import AuthNavigator from "./AuthNavigator";
 
@@ -46,7 +47,7 @@ export default function RootNavigator() {
     }
 
     return (
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
             {isAuthenticated ? <AppStackNavigator /> : <AuthNavigator />}
         </NavigationContainer>
     );

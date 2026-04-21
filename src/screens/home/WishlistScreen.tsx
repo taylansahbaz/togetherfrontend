@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   ImageBackground,
   Modal,
@@ -18,7 +17,11 @@ import {
 import { PLACE_CATEGORIES } from "@/src/utils/constants";
 import { api } from "../../api/client";
 import { getMyGroups } from "../../api/groups";
-import LoadingSpinner from "../../components/common/LoadingSpinner";
+import {
+  SkeletonList,
+  SkeletonPlaceCard,
+} from "../../components/common/Skeleton";
+import { useAlert } from "../../context/AlertContext";
 import { useAuth } from "../../hooks/useAuth";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
 import { Group } from "../../types/group";
@@ -68,11 +71,13 @@ const HeroChip = ({
   <View
     style={{
       backgroundColor: bg,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 12,
+      height: 32,
       borderRadius: 999,
       marginRight: 8,
       marginBottom: 8,
+      alignItems: "center",
+      justifyContent: "center",
     }}
   >
     <Text
@@ -80,6 +85,7 @@ const HeroChip = ({
         fontSize: 12,
         fontWeight: "700",
         color,
+        lineHeight: 14,
       }}
     >
       {text}
@@ -117,19 +123,7 @@ const EmptyState = ({ onAdd }: { onAdd: () => void }) => (
         color: colors.text,
       }}
     >
-      No plans yet
-    </Text>
-
-    <Text
-      style={{
-        marginTop: 8,
-        fontSize: 14,
-        lineHeight: 21,
-        textAlign: "center",
-        color: colors.muted,
-      }}
-    >
-      Henüz wishlist listende yer yok. İlk planını ekleyip burayı daha canlı hale getir.
+      Henüz bir planınız yok 😔
     </Text>
 
     <TouchableOpacity
@@ -159,7 +153,7 @@ const EmptyState = ({ onAdd }: { onAdd: () => void }) => (
           marginLeft: 8,
         }}
       >
-        Add your first place
+         İlk Planınızı Ekleyin
       </Text>
     </TouchableOpacity>
   </View>
@@ -234,7 +228,7 @@ const categoryLabel = getPlaceCategoryLabel(place.category ?? "");
           )}
         </View>
 
-          <View style={{ flex: 1,marginTop: 3, }}>
+          <View style={{ flex: 1, marginTop: -12, justifyContent: "center", minHeight: 40 }}>
             <Text
               style={{
                 fontSize: 16,
@@ -245,92 +239,6 @@ const categoryLabel = getPlaceCategoryLabel(place.category ?? "");
             >
               {place.title}
             </Text>
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 15,
-                marginLeft: -36,
-              }}
-            >
-              {!!place.city && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginRight: 12,
-                    marginBottom: 6,
-                  }}
-                >
-                  <Ionicons
-                    name="location-sharp"
-                    size={13}
-                    color={colors.muted}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.muted,
-                      marginLeft: 5,
-                    }}
-                  >
-                    {place.city}
-                  </Text>
-                </View>
-              )}
-
-              {!!visitDate && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginRight: 12,
-                    marginBottom: 6,
-                  }}
-                >
-                  <Ionicons
-                    name="calendar-sharp"
-                    size={13}
-                    color={colors.muted}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.muted,
-                      marginLeft: 5,
-                    }}
-                  >
-                    {visitDate}
-                  </Text>
-                </View>
-              )}
-
-              {place.createdByName && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Ionicons
-                    name="person-sharp"
-                    size={13}
-                    color={colors.muted}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.muted,
-                      marginLeft: 5,
-                    }}
-                  >
-                    {place.createdByName.charAt(0).toUpperCase() + place.createdByName.slice(1)} ekledi
-                  </Text>
-                </View>
-              )}
-            </View>
           </View>
         </View>
 
@@ -352,11 +260,132 @@ const categoryLabel = getPlaceCategoryLabel(place.category ?? "");
           <Ionicons name="checkmark-done" size={20} color={colors.primary} />
         </TouchableOpacity>
       </View>
+
+      {(!!place.city || !!visitDate || !!place.createdByName) && (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            flexWrap: "nowrap",
+            marginTop: 4,
+            paddingHorizontal: 4,
+          }}
+        >
+          {!!place.city && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                flexShrink: 1,
+                minWidth: 0,
+              }}
+            >
+              <Ionicons
+                name="location-sharp"
+                size={12}
+                color={colors.muted}
+              />
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: colors.muted,
+                  marginLeft: 3,
+                  flexShrink: 1,
+                }}
+                numberOfLines={1}
+              >
+                {place.city}
+              </Text>
+            </View>
+          )}
+
+          {!!place.city && (!!visitDate || !!place.createdByName) && (
+            <View
+              style={{
+                width: 3,
+                height: 3,
+                borderRadius: 2,
+                backgroundColor: colors.softMuted,
+                marginHorizontal: 8,
+              }}
+            />
+          )}
+
+          {!!visitDate && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Ionicons
+                name="calendar-sharp"
+                size={12}
+                color={colors.muted}
+              />
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: colors.muted,
+                  marginLeft: 3,
+                }}
+                numberOfLines={1}
+              >
+                {visitDate}
+              </Text>
+            </View>
+          )}
+
+          {!!visitDate && !!place.createdByName && (
+            <View
+              style={{
+                width: 3,
+                height: 3,
+                borderRadius: 2,
+                backgroundColor: colors.softMuted,
+                marginHorizontal: 8,
+              }}
+            />
+          )}
+
+          {!!place.createdByName && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                flexShrink: 1,
+                minWidth: 0,
+              }}
+            >
+              <Ionicons
+                name="person-sharp"
+                size={12}
+                color={colors.muted}
+              />
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: colors.muted,
+                  marginLeft: 3,
+                  flexShrink: 1,
+                }}
+                numberOfLines={1}
+              >
+                {place.createdByName.charAt(0).toUpperCase() +
+                  place.createdByName.slice(1)}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
     </Pressable>
   );
 };
 export default function WishlistScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { showAlert, confirm } = useAlert();
   const { selectedGroupId, selectedGroup, setSelectedGroup, initializeSelectedGroup } = useSelectedGroup();
 
   const [places, setPlaces] = useState<Place[]>([]);
@@ -387,7 +416,11 @@ export default function WishlistScreen({ navigation }: any) {
       if (err.response?.status === 403 || err.response?.status === 401) {
         setPlaces([]);
       } else {
-        Alert.alert("Hata", getApiErrorMessage(err));
+        showAlert({
+          title: "Hata",
+          message: getApiErrorMessage(err),
+          type: "danger",
+        });
         console.log("Wishlist Load Error:", err);
       }
     } finally {
@@ -422,30 +455,32 @@ export default function WishlistScreen({ navigation }: any) {
     loadGroups();
   }, [user?.id]);
 
-  const handleMarkAsVisited = (placeId: string) => {
-    Alert.alert(
-      "Buraya gittiniz mi?",
-      "Bu mekanı ziyaret edilen yerler listenize taşımak istiyor musunuz?",
-      [
-        { text: "Vazgeç", style: "cancel" },
-        {
-          text: "Evet, gittik!",
-          onPress: async () => {
-            try {
-              await api.put(`/Wishlist/${placeId}/mark-as-visited`);
-              loadWishlist();
-            } catch (err) {
-              Alert.alert("Hata", getApiErrorMessage(err));
-            }
-          },
-        },
-      ]
-    );
+  const handleMarkAsVisited = async (placeId: string) => {
+    const ok = await confirm({
+      title: "Buraya gittiniz mi?",
+      message:
+        "Bu mekanı ziyaret edilen yerler listenize taşımak istiyor musunuz?",
+      type: "info",
+      confirmText: "Evet, gittik!",
+      cancelText: "Vazgeç",
+    });
+    if (!ok) return;
+
+    try {
+      await api.put(`/Wishlist/${placeId}/mark-as-visited`);
+      loadWishlist();
+    } catch (err) {
+      showAlert({
+        title: "Hata",
+        message: getApiErrorMessage(err),
+        type: "danger",
+      });
+    }
   };
 
   const groupedData = useMemo(() => {
     return places.reduce((acc: any, place) => {
-      const cat = getPlaceCategoryLabel(place.category ?? "") || "General Plans";
+      const cat = getPlaceCategoryLabel(place.category ?? "") || "Genel Planlar";
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(place);
       return acc;
@@ -536,7 +571,7 @@ export default function WishlistScreen({ navigation }: any) {
                     }}
                     >
                     {selectedGroup?.name
-                        ? `${selectedGroup.name} ile Planların`
+                        ? `Planların`
                         : "Yakındaki Planların"}
                     </Text>
 
@@ -557,7 +592,7 @@ export default function WishlistScreen({ navigation }: any) {
                       width: 50,
                       height: 50,
                       borderRadius: 25,
-                      bottom: 10,
+                      bottom: 16,
                       backgroundColor: "rgba(47,126,141,0.12)",
                       justifyContent: "center",
                       alignItems: "center",
@@ -581,46 +616,83 @@ export default function WishlistScreen({ navigation }: any) {
                 >
                   <HeroChip
                     text={`${places.length} Plan`}
-                    bg={colors.primarySoft}
-                    color={colors.primary}
+                    bg={colors.pinkChip}
+                    color={colors.pinkChipText}
                   />
                   <HeroChip
                     text={`${cityCount} Şehir`}
-                    bg={colors.pinkChip}
-                    color={colors.pinkChipText}
+                    bg={colors.primarySoft}
+                    color={colors.primary}
+
                   />
                   <Pressable
                     onPress={() => setIsGroupModalVisible(true)}
                     style={{
-                      backgroundColor: "rgba(79, 172, 254, 0.15)",
+                      backgroundColor: "rgba(248, 248, 248, 0.44)",
                       paddingHorizontal: 10,
                       paddingVertical: 6,
                       borderRadius: 999,
                       marginRight: 8,
                       marginBottom: 8,
                       borderWidth: 1,
-                      borderColor: "rgba(47, 126, 141, 0.3)",
+                      borderColor: "rgba(204, 220, 223, 0.3)",
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 6,
                     }}
                   >
-                    <Ionicons name="people" size={12} color={colors.primary} />
+                    <View
+                      style={{
+                        width: 19,
+                        height: 19,
+                        borderRadius: 11,
+                        backgroundColor:
+                          selectedGroup?.colorCode || colors.primary,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Ionicons name={selectedGroup?.selectedIconsJson as any || "people"} size={12} color="#FFFFFF" />
+                    </View>
                     <Text
                       style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: colors.primary,
+                        fontSize: 12.5,
+                        fontWeight: "800",
+                        color: selectedGroup?.colorCode || colors.primary,
+                        maxWidth: 140,
                       }}
+                      numberOfLines={1}
                     >
                       {selectedGroup?.name || "Grup Seç"}
                     </Text>
+                    <View
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        backgroundColor: `${selectedGroup?.colorCode || colors.primary}22`,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginLeft: -2,
+                      }}
+                    >
+                      <Ionicons
+                        name="chevron-down"
+                        size={12}
+                        color={selectedGroup?.colorCode || colors.primary}
+                      />
+                    </View>
                   </Pressable>
                 </View>
               </View>
 
               {loading && !refreshing ? (
-                <LoadingSpinner />
+                <SkeletonList
+                  count={3}
+                  spacing={18}
+                  style={{ paddingHorizontal: 16, paddingTop: 8 }}
+                  renderItem={() => <SkeletonPlaceCard />}
+                />
               ) : places.length === 0 ? (
                 <EmptyState
                   onAdd={() =>
@@ -837,7 +909,7 @@ export default function WishlistScreen({ navigation }: any) {
                             }}
                           >
                             <Ionicons
-                              name={group.selectedIconsJson || "people"}
+                              name={group.selectedIconsJson as any|| "people"}
                               size={20}
                               color="white"
                             />

@@ -14,7 +14,7 @@ export default function WishlistStackNavigator() {
             {/* ÖNEMLİ: CreatePlace ve PlaceDetail ekranlarını buraya da ekliyoruz. 
                 Böylece Wishlist içinden yönlendirme yapınca navigatör bunları bulabilecek.
             */}
-
+            
             <Stack.Screen name="CreateWishlist" component={CreateWishlistScreen} options={{ headerShown: false }} />
             
             <Stack.Screen name="PlaceDetail" component={PlaceDetailScreen} options={{  headerShown: false }} />

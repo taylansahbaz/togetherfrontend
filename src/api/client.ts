@@ -1,5 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL } from "../utils/constants";
+import { globalEvents } from "../utils/globalEvents";
 import { storage } from "../utils/storage";
 
 export const api = axios.create({
@@ -9,6 +10,25 @@ export const api = axios.create({
 
 let isRefreshing = false;
 let failedQueue: any[] = [];
+let unauthorizedNotified = false;
+
+const notifyUnauthorized = () => {
+    if (unauthorizedNotified) return;
+    unauthorizedNotified = true;
+
+    globalEvents.emitAlert({
+        title: "Oturum Sona Erdi",
+        message: "Güvenliğiniz için tekrar giriş yapmanız gerekiyor.",
+        type: "info",
+        confirmText: "Tamam",
+        showCancelButton: false,
+    });
+    globalEvents.emitUnauthorized();
+
+    setTimeout(() => {
+        unauthorizedNotified = false;
+    }, 3000);
+};
 
 const processQueue = (error: any, token: string | null = null) => {
     failedQueue.forEach(prom => {
@@ -58,11 +78,11 @@ api.interceptors.response.use(
                 const refreshToken = await storage.getRefreshToken();
                 
                 if (!refreshToken) {
-                    // Refresh token yok, logout yap
                     console.log("DEBUG: Refresh token not found in storage, clearing auth data");
                     await storage.clearAllAuthData();
                     delete api.defaults.headers.common["Authorization"];
                     processQueue(new Error("Refresh token not found"), null);
+                    notifyUnauthorized();
                     return Promise.reject(new Error("Refresh token not found - User must re-authenticate"));
                 }
 
@@ -87,11 +107,11 @@ api.interceptors.response.use(
                 // Original request'i retry et
                 return api(originalRequest);
             } catch (err) {
-                // Refresh başarısız, logout yap
                 await storage.clearAllAuthData();
                 delete api.defaults.headers.common["Authorization"];
 
                 processQueue(err, null);
+                notifyUnauthorized();
                 return Promise.reject(err);
             }
         }

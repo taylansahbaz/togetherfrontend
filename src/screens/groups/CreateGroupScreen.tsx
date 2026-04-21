@@ -1,10 +1,14 @@
 import { GroupselectedIconsJson } from "@/src/types/group";
 import { Ionicons } from "@expo/vector-icons";
+import { zodResolver } from "@hookform/resolvers/zod";
 import * as ImagePicker from "expo-image-picker";
 import React, { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -16,8 +20,12 @@ import {
 } from "react-native";
 import { convertImageToBase64, createGroup, inviteGroupMember } from "../../api/groups";
 import AppButton from "../../components/common/AppButton";
-import CustomAlert from "../../components/common/CustomAlert";
+import { useAlert } from "../../context/AlertContext";
 import { getApiErrorMessage } from "../../utils/helpers";
+import {
+  CreateGroupFormData,
+  createGroupSchema,
+} from "../../utils/validationSchemas";
 
 const GROUP_COLORS = [
   "#6E97A3",
@@ -52,8 +60,18 @@ const GROUP_ICONS: {
 ];
 
 export default function CreateGroupScreen({ navigation }: any) {
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { showAlert } = useAlert();
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateGroupFormData>({
+    resolver: zodResolver(createGroupSchema),
+    mode: "onTouched",
+    defaultValues: { name: "", description: "" },
+  });
+
   const [colorCode, setColorCode] = useState(GROUP_COLORS[0]);
   const [iconKey, setIconKey] = useState<GroupselectedIconsJson | null>("planet");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -64,29 +82,9 @@ export default function CreateGroupScreen({ navigation }: any) {
   const [invitedEmails, setInvitedEmails] = useState<string[]>([]);
   const [isInviting, setIsInviting] = useState(false);
 
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertTitle, setAlertTitle] = useState("");
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertType, setAlertType] = useState<"danger" | "success" | "info">("info");
-
   const selectedIconName = useMemo(() => {
     return GROUP_ICONS.find((item) => item.key === iconKey)?.iconName ?? "planet";
   }, [iconKey]);
-
-  const showAlert = (
-    title: string,
-    message: string,
-    type: "danger" | "success" | "info" = "info"
-  ) => {
-    setAlertTitle(title);
-    setAlertMessage(message);
-    setAlertType(type);
-    setAlertVisible(true);
-  };
-
-  const closeAlert = () => {
-    setAlertVisible(false);
-  };
 
   const pickGroupPhoto = async () => {
     setIsPhotoSourceModalVisible(true);
@@ -99,11 +97,11 @@ export default function CreateGroupScreen({ navigation }: any) {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
 
       if (!permission.granted) {
-        showAlert(
-          "İzin Gerekli",
-          "Fotoğraf çekebilmek için kamera izni vermen gerekiyor.",
-          "info"
-        );
+        showAlert({
+          title: "İzin Gerekli",
+          message: "Fotoğraf çekebilmek için kamera izni vermen gerekiyor.",
+          type: "info",
+        });
         return;
       }
 
@@ -119,7 +117,7 @@ export default function CreateGroupScreen({ navigation }: any) {
         setIconKey(null);
       }
     } catch (error) {
-      showAlert("Hata", getApiErrorMessage(error), "danger");
+      showAlert({ title: "Hata", message: getApiErrorMessage(error), type: "danger" });
     }
   };
 
@@ -130,11 +128,11 @@ export default function CreateGroupScreen({ navigation }: any) {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        showAlert(
-          "İzin Gerekli",
-          "Grup fotoğrafı seçebilmek için galeri izni vermen gerekiyor.",
-          "info"
-        );
+        showAlert({
+          title: "İzin Gerekli",
+          message: "Grup fotoğrafı seçebilmek için galeri izni vermen gerekiyor.",
+          type: "info",
+        });
         return;
       }
 
@@ -150,7 +148,7 @@ export default function CreateGroupScreen({ navigation }: any) {
         setIconKey(null);
       }
     } catch (error) {
-      showAlert("Hata", getApiErrorMessage(error), "danger");
+      showAlert({ title: "Hata", message: getApiErrorMessage(error), type: "danger" });
     }
   };
 
@@ -171,19 +169,19 @@ export default function CreateGroupScreen({ navigation }: any) {
 
   const handleAddEmail = () => {
     const email = emailInput.trim().toLowerCase();
-    
+
     if (!email) {
-      showAlert("Hata", "Lütfen bir e-posta adresi gir.", "danger");
+      showAlert({ title: "Hata", message: "Lütfen bir e-posta adresi gir.", type: "danger" });
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      showAlert("Hata", "Geçerli bir e-posta adresi gir.", "danger");
+      showAlert({ title: "Hata", message: "Geçerli bir e-posta adresi gir.", type: "danger" });
       return;
     }
 
     if (invitedEmails.includes(email)) {
-      showAlert("Hata", "Bu e-posta zaten eklenmiş.", "danger");
+      showAlert({ title: "Hata", message: "Bu e-posta zaten eklenmiş.", type: "danger" });
       return;
     }
 
@@ -195,15 +193,8 @@ export default function CreateGroupScreen({ navigation }: any) {
     setInvitedEmails(invitedEmails.filter(e => e !== email));
   };
 
-  const onCreate = async () => {
-    if (!name.trim()) {
-      showAlert("Eksik Bilgi", "Lütfen grup adını gir.", "info");
-      return;
-    }
-
+  const onCreate = handleSubmit(async (values) => {
     try {
-      setLoading(true);
-
       let finalPhotoUrl: string | null = null;
 
       const isLocalPhoto =
@@ -214,23 +205,26 @@ export default function CreateGroupScreen({ navigation }: any) {
         try {
           finalPhotoUrl = await convertImageToBase64(photoUrl);
         } catch (err) {
-          showAlert("Uyarı", "Fotoğraf işlenirken hata oluştu.", "info");
+          showAlert({
+            title: "Uyarı",
+            message: "Fotoğraf işlenirken hata oluştu.",
+            type: "info",
+          });
         }
       } else if (photoUrl) {
         finalPhotoUrl = photoUrl;
       }
 
       const groupResponse = await createGroup({
-        name: name.trim(),
+        name: values.name.trim(),
         colorcode: colorCode,
         photoUrl: finalPhotoUrl,
         selectedIconsJson: finalPhotoUrl ? null : iconKey,
       });
 
-      // Grup oluşturulduktan sonra, davet emaillerine davet gönder
       if (invitedEmails.length > 0 && groupResponse?.id) {
         const createdGroupId = groupResponse.id;
-        
+
         for (const email of invitedEmails) {
           try {
             await inviteGroupMember(createdGroupId, email);
@@ -240,18 +234,20 @@ export default function CreateGroupScreen({ navigation }: any) {
         }
       }
 
-      showAlert("Başarılı", `Grup oluşturuldu${invitedEmails.length > 0 ? ` ve ${invitedEmails.length} davet gönderildi.` : "."}`, "success");
-
-      setTimeout(() => {
-        setAlertVisible(false);
-        navigation.goBack();
-      }, 700);
+      showAlert({
+        title: "Başarılı",
+        message: `Grup oluşturuldu${invitedEmails.length > 0 ? ` ve ${invitedEmails.length} davet gönderildi.` : "."}`,
+        type: "success",
+        onConfirm: () => navigation.goBack(),
+      });
     } catch (err) {
-      showAlert("Hata", getApiErrorMessage(err), "danger");
-    } finally {
-      setLoading(false);
+      showAlert({
+        title: "Hata",
+        message: getApiErrorMessage(err),
+        type: "danger",
+      });
     }
-  };
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -270,25 +266,40 @@ export default function CreateGroupScreen({ navigation }: any) {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
       >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        >
         {/* 1. KART GİBİ DURAN GİRİŞ ALANI (AppInput yerine kendi TextInput'umuz) */}
         <View style={styles.inputContainer}>
           <View style={styles.sectionHeader}>
              <Ionicons name="enter-outline" size={20} color="#64748b" />
              <Text style={styles.sectionTitle}>Grup Adı</Text>
           </View>
-          <TextInput
-            style={styles.customInput}
-            value={name}
-            onChangeText={setName}
-            placeholder="Harika bir isim düşün..."
-            placeholderTextColor="#94a3b8"
-            selectionColor="#102a43"
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.customInput}
+                value={value}
+                onChangeText={onChange}
+                placeholder="Harika bir isim düşün..."
+                placeholderTextColor="#94a3b8"
+                selectionColor="#102a43"
+              />
+            )}
           />
+          {errors.name?.message && (
+            <Text style={styles.fieldError}>{errors.name.message}</Text>
+          )}
         </View>
 
         {/* 2. KART: RENK SEÇİMİ */}
@@ -382,6 +393,10 @@ export default function CreateGroupScreen({ navigation }: any) {
               placeholder="E-posta adresini gir..."
               placeholderTextColor="#94a3b8"
               keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleAddEmail}
               selectionColor="#102a43"
             />
             <Pressable 
@@ -408,9 +423,10 @@ export default function CreateGroupScreen({ navigation }: any) {
         </View>
 
         <View style={styles.submitButtonContainer}>
-          <AppButton title="Grubu Oluştur" onPress={onCreate} loading={loading} />
+          <AppButton title="Grubu Oluştur" onPress={onCreate} loading={isSubmitting} />
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* İKON SEÇİM MODALI */}
       <Modal
@@ -526,15 +542,6 @@ export default function CreateGroupScreen({ navigation }: any) {
         </Pressable>
       </Modal>
 
-      <CustomAlert
-        visible={alertVisible}
-        title={alertTitle}
-        message={alertMessage}
-        onConfirm={closeAlert}
-        confirmText="Tamam"
-        type={alertType}
-        showCancelButton={false}
-      />
     </SafeAreaView>
   );
 }
@@ -543,6 +550,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#cfe7fecf",
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   headerRow: {
     flexDirection: "row",
@@ -597,12 +607,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#334155",
   },
+  fieldError: {
+    color: "#dc2626",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 6,
+    marginLeft: 4,
+  },
   customInput: {
     backgroundColor: "#ffffff",
-    height: 56, 
+    height: 56,
     borderRadius: 16,
     paddingHorizontal: 16,
     fontSize: 16,
+    marginBottom: -10,
     color: "#0f172a",
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 4 },
@@ -616,7 +634,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 24,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 11,
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,

@@ -49,3 +49,14 @@ export const deleteNotification = async (notificationId: string) => {
   const response = await api.delete(`/notifications/${notificationId}`);
   return response.data;
 };
+
+export const respondWishDayFromNotification = async (
+  notificationId: string,
+  response: "Accepted" | "Maybe" | "Rejected"
+) => {
+  const numericMap = { Accepted: 1, Maybe: 2, Rejected: 3 } as const;
+  const result = await api.post(`/notifications/${notificationId}/rsvp`, {
+    response: numericMap[response],
+  });
+  return result.data;
+};

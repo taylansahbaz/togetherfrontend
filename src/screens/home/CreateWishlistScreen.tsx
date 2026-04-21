@@ -1,14 +1,13 @@
-import CustomAlert from "@/src/components/common/CustomAlert";
 import CategoryPicker from "@/src/components/place/CategoryPicker";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  FlatList,
   ImageBackground,
   KeyboardAvoidingView,
   Modal,
@@ -22,8 +21,11 @@ import {
   View,
 } from "react-native";
 import { api } from "../../api/client";
+import { getMyGroups } from "../../api/groups";
 import { updatePlace } from "../../api/places";
+import { useAlert } from "../../context/AlertContext";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
+import { Group } from "../../types/group";
 import { getApiErrorMessage } from "../../utils/helpers";
 import { mapGoogleTypeToCategoryValue } from "../../utils/placeCategories";
 
@@ -66,19 +68,6 @@ const sectionCardStyle = {
   elevation: 4,
 };
 
-type AlertType = "info" | "success" | "danger";
-
-type AlertState = {
-  visible: boolean;
-  title: string;
-  message: string;
-  type: AlertType;
-  confirmText: string;
-  cancelText: string;
-  showCancelButton: boolean;
-  onConfirm?: () => void | Promise<void>;
-  onCancel?: () => void | Promise<void>;
-};
 
 const toTitleCase = (str: string) => {
   if (!str) return "";
@@ -109,6 +98,30 @@ const parseInputDate = (value: string) => {
   const [year, month, day] = parts.map(Number);
   const parsed = new Date(year, month - 1, day);
   return isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const TR_WEEKDAYS = [
+  "Pazar",
+  "Pazartesi",
+  "Salı",
+  "Çarşamba",
+  "Perşembe",
+  "Cuma",
+  "Cumartesi",
+];
+
+const formatDateTurkish = (value: string) => {
+  if (!value) return "";
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+  const [year, month, day] = parts.map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (isNaN(parsed.getTime())) return value;
+  const dd = `${parsed.getDate()}`.padStart(2, "0");
+  const mm = `${parsed.getMonth() + 1}`.padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  const weekday = TR_WEEKDAYS[parsed.getDay()];
+  return `${dd}.${mm}.${yyyy} ${weekday}`;
 };
 
 const SectionTitle = ({
@@ -274,7 +287,7 @@ const DatePickerField = ({
           fontWeight: value ? "700" : "500",
         }}
       >
-        {value || "Select a date"}
+        {value ? formatDateTurkish(value) : "Tarih seç"}
       </Text>
     </View>
 
@@ -300,10 +313,80 @@ const DatePickerField = ({
 );
 
 export default function CreateWishlistScreen({ navigation, route }: any) {
-  const { selectedGroupId } = useSelectedGroup();
+  const { selectedGroup, selectedGroupId, setSelectedGroup } =
+    useSelectedGroup();
 
   const editPlaceId = route.params?.editPlaceId;
   const placeData = route.params?.placeData;
+
+  const [pickedGroupId, setPickedGroupId] = useState<string | null>(
+    placeData?.groupId ?? selectedGroupId ?? null
+  );
+  const [pickedGroupName, setPickedGroupName] = useState<string | null>(
+    placeData?.groupId ? null : selectedGroup?.name ?? null
+  );
+  const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
+  const [groupPickerVisible, setGroupPickerVisible] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  useEffect(() => {
+    if (!pickedGroupId && selectedGroupId) {
+      setPickedGroupId(selectedGroupId);
+      setPickedGroupName(selectedGroup?.name ?? null);
+    }
+  }, [selectedGroupId, selectedGroup]);
+
+  useEffect(() => {
+    if (editPlaceId && placeData?.groupId && !pickedGroupName) {
+      (async () => {
+        try {
+          const res = await getMyGroups();
+          const groups = res.data?.groups ?? [];
+          setAvailableGroups(groups);
+          const match = groups.find((g) => g.id === placeData.groupId);
+          if (match) setPickedGroupName(match.name);
+        } catch (err) {
+          console.log("Failed to load groups for edit prefetch:", err);
+        }
+      })();
+    }
+  }, [editPlaceId, placeData?.groupId]);
+
+  const loadGroups = async () => {
+    try {
+      setLoadingGroups(true);
+      const res = await getMyGroups();
+      const groups = res.data?.groups ?? [];
+      setAvailableGroups(groups);
+
+      if (pickedGroupId && !pickedGroupName) {
+        const match = groups.find((g) => g.id === pickedGroupId);
+        if (match) setPickedGroupName(match.name);
+      }
+    } catch (err) {
+      console.log("Failed to load groups:", err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const openGroupPicker = () => {
+    setGroupPickerVisible(true);
+    if (availableGroups.length === 0) {
+      loadGroups();
+    }
+  };
+
+  const handleSelectGroup = async (group: Group) => {
+    setPickedGroupId(group.id);
+    setPickedGroupName(group.name);
+    setGroupPickerVisible(false);
+    try {
+      await setSelectedGroup(group);
+    } catch (err) {
+      console.log("Failed to persist selected group:", err);
+    }
+  };
 
   const defaultDate = route.params?.defaultDate || "";
   const formattedInitialDate = placeData?.visitDate
@@ -333,56 +416,9 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
 
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const [alertState, setAlertState] = useState<AlertState>({
-    visible: false,
-    title: "",
-    message: "",
-    type: "info",
-    confirmText: "Tamam",
-    cancelText: "İptal",
-    showCancelButton: false,
-  });
+  const { showAlert } = useAlert();
 
   const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-  const hideAlert = () => {
-    setAlertState((prev) => ({
-      ...prev,
-      visible: false,
-    }));
-  };
-
-  const showAlert = ({
-    title,
-    message,
-    type = "info",
-    confirmText = "Tamam",
-    cancelText = "İptal",
-    showCancelButton = false,
-    onConfirm,
-    onCancel,
-  }: {
-    title: string;
-    message: string;
-    type?: AlertType;
-    confirmText?: string;
-    cancelText?: string;
-    showCancelButton?: boolean;
-    onConfirm?: () => void | Promise<void>;
-    onCancel?: () => void | Promise<void>;
-  }) => {
-    setAlertState({
-      visible: true,
-      title,
-      message,
-      type,
-      confirmText,
-      cancelText,
-      showCancelButton,
-      onConfirm,
-      onCancel,
-    });
-  };
 
   const fetchPredictions = async (input: string) => {
     if (!input || input.length < 3) {
@@ -463,7 +499,12 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
             selected.setHours(0, 0, 0, 0);
             
             if (selected < today) {
-              Alert.alert("Uyarı", "Plan için geçmiş tarihleri seçemezsiniz. Lütfen bugün veya daha sonraki bir tarih seçiniz.");
+              showAlert({
+                title: "Uyarı",
+                message:
+                  "Plan için geçmiş tarihleri seçemezsiniz. Lütfen bugün veya daha sonraki bir tarih seçiniz.",
+                type: "info",
+              });
               return;
             }
             
@@ -575,7 +616,12 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
       selected.setHours(0, 0, 0, 0);
       
       if (selected < today) {
-        Alert.alert("Uyarı", "Plan için geçmiş tarihleri seçemezsiniz. Lütfen bugün veya daha sonraki bir tarih seçiniz.");
+        showAlert({
+          title: "Uyarı",
+          message:
+            "Plan için geçmiş tarihleri seçemezsiniz. Lütfen bugün veya daha sonraki bir tarih seçiniz.",
+          type: "info",
+        });
         return;
       }
       
@@ -618,7 +664,10 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
       setIsSaving(true);
 
       if (editPlaceId) {
+        const effectiveGroupId = pickedGroupId ?? selectedGroupId ?? undefined;
+
         await updatePlace(editPlaceId, {
+          groupId: effectiveGroupId,
           title: formattedTitle,
           category: formattedCategory,
           city: formattedCity,
@@ -629,22 +678,24 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
           description,
         });
       } else {
-        if (!selectedGroupId) {
+        const effectiveGroupId = pickedGroupId ?? selectedGroupId;
+
+        if (!effectiveGroupId) {
           setIsSaving(false);
           showAlert({
               title: "Grup Seçilmedi",
               message: "Lütfen bir grup seçin.",
               type: "info",
-              confirmText: "Tamam",
+              confirmText: "Grup Seç",
               onConfirm: () => {
-                navigation.navigate("GroupListScreen"); 
+                openGroupPicker();
               }
             });
           return;
         }
 
         const payload: any = {
-          groupId: selectedGroupId,
+          groupId: effectiveGroupId,
           title: formattedTitle,
           category: formattedCategory,
           city: formattedCity,
@@ -662,10 +713,10 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
       showAlert({
         title: "Harika!",
         message: editPlaceId
-          ? "Wish Day planı başarıyla güncellendi."
-          : "Wish Day planı başarıyla oluşturuldu.",
+          ? "Planınız başarıyla güncellendi."
+          : "Planınız başarıyla oluşturuldu.",
         type: "success",
-        onConfirm: () => {
+        onConfirm: () => {  
           navigation.goBack();
         },
       });
@@ -961,6 +1012,99 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
                 </View>
 
                 <View style={sectionCardStyle}>
+                  <SectionTitle
+                    icon="people-outline"
+                    title="Grup Seç"
+                    subtitle={
+                      editPlaceId
+                        ? "Bu Wish Day'i başka bir gruba taşıyabilirsin."
+                        : "Planı hangi grupla paylaşmak istiyorsun?"
+                    }
+                  />
+
+                    <Pressable
+                      onPress={openGroupPicker}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: colors.input,
+                        borderRadius: 18,
+                        borderWidth: 1,
+                        borderColor: colors.inputBorder,
+                        paddingHorizontal: 12,
+                        paddingVertical: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 17,
+                          backgroundColor: colors.softPink,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          marginRight: 10,
+                        }}
+                      >
+                        <Ionicons
+                          name="people"
+                          size={17}
+                          color={colors.primaryDark}
+                        />
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: colors.muted,
+                            marginBottom: 3,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Seçili Grup
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            color: pickedGroupName ? "#3a4049" : "#A0AABD",
+                            fontWeight: pickedGroupName ? "700" : "500",
+                          }}
+                          numberOfLines={1}
+                        >
+                          {pickedGroupName || "Bir grup seç"}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          backgroundColor: colors.primary,
+                          paddingHorizontal: 12,
+                          paddingVertical: 7,
+                          borderRadius: 14,
+                          marginRight: 6,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: colors.white,
+                            fontSize: 12,
+                            fontWeight: "800",
+                          }}
+                        >
+                          Değiştir
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color="#B7C1CD"
+                      />
+                    </Pressable>
+                </View>
+
+                <View style={sectionCardStyle}>
                   <DatePickerField
                     value={visitDate}
                     onPress={openDatePicker}
@@ -1115,25 +1259,163 @@ export default function CreateWishlistScreen({ navigation, route }: any) {
         </View>
       </ImageBackground>
 
-      <CustomAlert
-        visible={alertState.visible}
-        title={alertState.title}
-        message={alertState.message}
-        type={alertState.type}
-        confirmText={alertState.confirmText}
-        cancelText={alertState.cancelText}
-        showCancelButton={alertState.showCancelButton}
-        onConfirm={async () => {
-          const callback = alertState.onConfirm;
-          hideAlert();
-          await callback?.();
-        }}
-        onCancel={async () => {
-          const callback = alertState.onCancel;
-          hideAlert();
-          await callback?.();
-        }}
-      />
+      <Modal
+        transparent
+        animationType="slide"
+        visible={groupPickerVisible}
+        onRequestClose={() => setGroupPickerVisible(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setGroupPickerVisible(false)}
+        >
+          <Pressable
+            onPress={() => {}}
+            style={{
+              backgroundColor: "#fff",
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingTop: 14,
+              paddingBottom: 28,
+              maxHeight: "75%",
+            }}
+          >
+            <View
+              style={{
+                alignSelf: "center",
+                width: 42,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: "#E3E7EE",
+                marginBottom: 10,
+              }}
+            />
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: 20,
+                marginBottom: 10,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: colors.text,
+                }}
+              >
+                Grup Seç
+              </Text>
+              <TouchableOpacity
+                onPress={() => setGroupPickerVisible(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: "#F2F4F8",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="close" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingGroups ? (
+              <View style={{ padding: 40, alignItems: "center" }}>
+                <ActivityIndicator color={colors.primaryDark} />
+              </View>
+            ) : availableGroups.length === 0 ? (
+              <View style={{ padding: 30, alignItems: "center" }}>
+                <Ionicons
+                  name="people-outline"
+                  size={32}
+                  color="#B7C1CD"
+                />
+                <Text
+                  style={{
+                    marginTop: 10,
+                    color: colors.muted,
+                    fontSize: 14,
+                    fontWeight: "600",
+                    textAlign: "center",
+                  }}
+                >
+                  Henüz hiç grubun yok. Önce bir grup oluştur.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={availableGroups}
+                keyExtractor={(g) => g.id}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
+                renderItem={({ item }) => {
+                  const isActive = item.id === pickedGroupId;
+                  return (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => handleSelectGroup(item)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: 14,
+                        paddingHorizontal: 14,
+                        marginBottom: 8,
+                        borderRadius: 16,
+                        backgroundColor: isActive
+                          ? colors.softPink
+                          : "#F7F9FC",
+                        borderWidth: isActive ? 1 : 0,
+                        borderColor: colors.primary,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: item.colorCode || colors.primary,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          marginRight: 12,
+                        }}
+                      >
+                        <Ionicons name="people" size={18} color="#fff" />
+                      </View>
+                      <Text
+                        style={{
+                          flex: 1,
+                          fontSize: 15,
+                          fontWeight: "700",
+                          color: colors.text,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+                      {isActive && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={colors.primaryDark}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </View>
   );
 }

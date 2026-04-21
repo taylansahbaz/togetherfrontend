@@ -78,6 +78,8 @@ export const mapGoogleTypeToCategoryValue = (googleType?: string) => {
     park: "nature",
     campground: "nature",
     natural_feature: "nature",
+    national_park: "nature",
+    hiking_area: "nature",
 
     // Spor
     gym: "spor",
@@ -101,6 +103,18 @@ export const mapGoogleTypeToCategoryValue = (googleType?: string) => {
     return "restaurant";
   }
 
+  if (type.includes("park")) {
+    return "nature";
+  }
+  if (type.includes("gym")) {
+    return "spor";
+  }
+  if (type.includes("cinema")) {
+    return "cinema";
+  }
+  if (type.includes("library")) {
+    return "study_place";
+  }
   // Aksi halde "cafe" olarak işaretle
   return "cafe";
 };

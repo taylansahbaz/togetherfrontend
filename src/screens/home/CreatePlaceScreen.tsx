@@ -5,10 +5,10 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  FlatList,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -23,11 +23,13 @@ import {
   View,
 } from "react-native";
 
-import CustomAlert from "@/src/components/common/CustomAlert";
 import { api } from "../../api/client";
+import { getMyGroups } from "../../api/groups";
 import { updatePlace } from "../../api/places";
 import { createReview } from "../../api/reviews";
+import { useAlert } from "../../context/AlertContext";
 import { useSelectedGroup } from "../../hooks/useSelectedGroup";
+import { Group } from "../../types/group";
 import { PLACE_CATEGORIES } from "../../utils/constants";
 import { getApiErrorMessage } from "../../utils/helpers";
 import {
@@ -116,6 +118,28 @@ const toTitleCase = (str: string) => {
       );
     })
     .join(" ");
+};
+const TR_WEEKDAYS = [
+  "Pazar",
+  "Pazartesi",
+  "Salı",
+  "Çarşamba",
+  "Perşembe",
+  "Cuma",
+  "Cumartesi",
+];
+const formatDateTurkish = (value: string) => {
+  if (!value) return "";
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+  const [year, month, day] = parts.map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (isNaN(parsed.getTime())) return value;
+  const dd = `${parsed.getDate()}`.padStart(2, "0");
+  const mm = `${parsed.getMonth() + 1}`.padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  const weekday = TR_WEEKDAYS[parsed.getDay()];
+  return `${dd}.${mm}.${yyyy} ${weekday}`;
 };
 
 const formatDateToInput = (date: Date) => {
@@ -329,7 +353,7 @@ const DatePickerField = ({
           fontWeight: value ? "700" : "500",
         }}
       >
-        {value || "Select a date"}
+        {value || "Tarih seç"}
       </Text>
     </View>
 
@@ -445,12 +469,83 @@ const StarRating = ({
 };
 
 export default function CreatePlaceScreen({ navigation, route }: any) {
-  const { selectedGroupId } = useSelectedGroup();
+  const { showAlert } = useAlert();
+  const { selectedGroup, selectedGroupId, setSelectedGroup } =
+    useSelectedGroup();
 
   const editPlaceId = route.params?.editPlaceId;
   const placeData = route.params?.placeData;
   const initialStatus = route.params?.initialStatus || 1;
   const defaultDate = route.params?.defaultDate || "";
+
+  const [pickedGroupId, setPickedGroupId] = useState<string | null>(
+    placeData?.groupId ?? selectedGroupId ?? null
+  );
+  const [pickedGroupName, setPickedGroupName] = useState<string | null>(
+    placeData?.groupId ? null : selectedGroup?.name ?? null
+  );
+  const [availableGroups, setAvailableGroups] = useState<Group[]>([]);
+  const [groupPickerVisible, setGroupPickerVisible] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  useEffect(() => {
+    if (!pickedGroupId && selectedGroupId) {
+      setPickedGroupId(selectedGroupId);
+      setPickedGroupName(selectedGroup?.name ?? null);
+    }
+  }, [selectedGroupId, selectedGroup]);
+
+  useEffect(() => {
+    if (editPlaceId && placeData?.groupId && !pickedGroupName) {
+      (async () => {
+        try {
+          const res = await getMyGroups();
+          const groups = res.data?.groups ?? [];
+          setAvailableGroups(groups);
+          const match = groups.find((g) => g.id === placeData.groupId);
+          if (match) setPickedGroupName(match.name);
+        } catch (err) {
+          console.log("Failed to load groups for edit prefetch:", err);
+        }
+      })();
+    }
+  }, [editPlaceId, placeData?.groupId]);
+
+  const loadGroups = async () => {
+    try {
+      setLoadingGroups(true);
+      const res = await getMyGroups();
+      const groups = res.data?.groups ?? [];
+      setAvailableGroups(groups);
+
+      if (pickedGroupId && !pickedGroupName) {
+        const match = groups.find((g) => g.id === pickedGroupId);
+        if (match) setPickedGroupName(match.name);
+      }
+    } catch (err) {
+      console.log("Failed to load groups:", err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const openGroupPicker = () => {
+    setGroupPickerVisible(true);
+    if (availableGroups.length === 0) {
+      loadGroups();
+    }
+  };
+
+  const handleSelectGroup = async (group: Group) => {
+    setPickedGroupId(group.id);
+    setPickedGroupName(group.name);
+    setGroupPickerVisible(false);
+    try {
+      await setSelectedGroup(group);
+    } catch (err) {
+      console.log("Failed to persist selected group:", err);
+    }
+  };
 
   const isVisitedPlace = editPlaceId
     ? placeData?.status === 2 || !!placeData?.visitDate
@@ -488,30 +583,13 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const [customAlert, setCustomAlert] = useState<{
-    visible: boolean;
-    title: string;
-    message: string;
-    type: "danger" | "success" | "info";
-    confirmText?: string;
-    showCancelButton?: boolean;
-    onConfirmAction?: (() => void) | null;
-  }>({
-    visible: false,
-    title: "",
-    message: "",
-    type: "info",
-    confirmText: "Tamam",
-    showCancelButton: false,
-    onConfirmAction: null,
-  });
   const selectedCategoryItem = PLACE_CATEGORIES.find(
     (item) => item.value === category
   );
 
   const previewTitle = useMemo(() => title?.trim(), [title]);
   const showCustomAlert = ({
-    title,
+    title: alertTitle,
     message,
     type = "info",
     confirmText = "Tamam",
@@ -525,22 +603,14 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
     showCancelButton?: boolean;
     onConfirmAction?: (() => void) | null;
   }) => {
-    setCustomAlert({
-      visible: true,
-      title,
+    showAlert({
+      title: alertTitle,
       message,
       type,
       confirmText,
       showCancelButton,
-      onConfirmAction,
+      onConfirm: onConfirmAction ?? undefined,
     });
-  };
-
-  const closeCustomAlert = () => {
-    setCustomAlert((prev) => ({
-      ...prev,
-      visible: false,
-    }));
   };
   const fetchPredictions = async (input: string) => {
     if (!input || input.length < 3) {
@@ -637,9 +707,13 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
       );
 
       const rawText = await response.text();
-
+      console.log(rawText);
       if (!response.ok) {
-        Alert.alert("Hata", "Mekan detayları alınırken bir sorun oluştu.");
+        showAlert({
+          title: "Hata",
+          message: "Mekan detayları alınırken bir sorun oluştu.",
+          type: "danger",
+        });
         setIsSearching(false);
         return;
       }
@@ -675,7 +749,11 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
         setCategory(mappedCategory);
       }
     } catch (error) {
-      Alert.alert("Hata", "Mekan detayları okunamadı.");
+      showAlert({
+        title: "Hata",
+        message: "Mekan detayları okunamadı.",
+        type: "danger",
+      });
     } finally {
       setIsSearching(false);
     }
@@ -698,10 +776,15 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
             selected.setHours(0, 0, 0, 0);
             
             if (selected > today) {
-              Alert.alert("Uyarı", "Ziyaret ettim için gelecek tarihleri seçemezsiniz. Lütfen bugün veya daha önceki bir tarih seçiniz.");
+              showAlert({
+                title: "Uyarı",
+                message:
+                  "Ziyaret ettim için gelecek tarihleri seçemezsiniz. Lütfen bugün veya daha önceki bir tarih seçiniz.",
+                type: "info",
+              });
               return;
             }
-            
+
             setVisitDate(formatDateToInput(selectedDate));
           }
         },
@@ -725,10 +808,15 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
       selected.setHours(0, 0, 0, 0);
       
       if (selected > today) {
-        Alert.alert("Uyarı", "Ziyaret ettim için gelecek tarihleri seçemezsiniz. Lütfen bugün veya daha önceki bir tarih seçiniz.");
+        showAlert({
+          title: "Uyarı",
+          message:
+            "Ziyaret ettim için gelecek tarihleri seçemezsiniz. Lütfen bugün veya daha önceki bir tarih seçiniz.",
+          type: "info",
+        });
         return;
       }
-      
+
       setVisitDate(formatDateToInput(selectedDate));
     }
   };
@@ -807,7 +895,11 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
           payload.visitdate = finalVisitDate;
         }
       if (editPlaceId) {
-        await updatePlace(editPlaceId, payload);
+        const effectiveGroupId = pickedGroupId ?? selectedGroupId ?? undefined;
+        await updatePlace(editPlaceId, {
+          ...payload,
+          groupId: effectiveGroupId,
+        });
       } else {
         if (!selectedGroupId) {
 
@@ -1074,7 +1166,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                             marginLeft: 2,
                             }}
                         >
-                            Ziyaret Tarihi
+                            Ziyaret Tarihi 
                         </Text>
 
                         <Pressable
@@ -1098,7 +1190,7 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                                 fontWeight: visitDate ? "800" : "500",
                             }}
                             >
-                            {visitDate || ""}
+                            {visitDate ? formatDateTurkish(visitDate) : ""}
                             </Text>
 
                             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -1129,6 +1221,111 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                         </View>
                     )}
                     </LinearGradient>
+
+                <Pressable
+                  onPress={openGroupPicker}
+                  style={({ pressed }) => ({
+                    borderRadius: 22,
+                    marginTop: -3,
+                    marginBottom: 9,
+                    opacity: pressed ? 0.92 : 1,
+                    shadowColor: "#6D8196",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.18,
+                    shadowRadius: 10,
+                    elevation: 3,
+                  })}
+                >
+                  <LinearGradient
+                    colors={["#8FA6C2", "#B8A4C9", "#E9B6B3"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{
+                      borderRadius: 22,
+                      padding: 2,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: "#FFFFFF",
+                        borderRadius: 20,
+                        paddingHorizontal: 14,
+                        paddingVertical: 14,
+                      }}
+                    >
+                      <LinearGradient
+                        colors={["#8FA6C2", "#E9B6B3"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          marginRight: 12,
+                        }}
+                      >
+                        <Ionicons name="people" size={21} color="#FFFFFF" />
+                      </LinearGradient>
+
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: "#8E9AA5",
+                            marginBottom: 2,
+                            fontWeight: "800",
+                            letterSpacing: 0.4,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Seçili Grup
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            color: pickedGroupName ? colors.text : "#A0AABD",
+                            fontWeight: pickedGroupName ? "800" : "600",
+                          }}
+                          numberOfLines={1}
+                        >
+                          {pickedGroupName || "Bir grup seç"}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          backgroundColor: "rgba(109,129,150,0.12)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 7,
+                          borderRadius: 14,
+                          marginRight: 4,
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Ionicons
+                          name="swap-horizontal"
+                          size={14}
+                          color={colors.primaryDark}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          style={{
+                            color: colors.primaryDark,
+                            fontSize: 12,
+                            fontWeight: "800",
+                          }}
+                        >
+                          Değiştir
+                        </Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
 
                 <View style={sectionCardStyle}>
                   <SectionTitle
@@ -1259,22 +1456,6 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
                           + Fotoğraf Ekle
                         </Text>
                       </TouchableOpacity>
-                      <CustomAlert
-                        visible={customAlert.visible}
-                        title={customAlert.title}
-                        message={customAlert.message}
-                        type={customAlert.type}
-                        confirmText={customAlert.confirmText}
-                        showCancelButton={customAlert.showCancelButton}
-                        onCancel={closeCustomAlert}
-                        onConfirm={() => {
-                          const action = customAlert.onConfirmAction;
-                          closeCustomAlert();
-                          if (action) {
-                            action();
-                          }
-                        }}
-                      />
                       {selectedImages.length > 0 ? (
                         <ScrollView
                           horizontal
@@ -1572,6 +1753,164 @@ export default function CreatePlaceScreen({ navigation, route }: any) {
           </SafeAreaView>
         </View>
       </ImageBackground>
+
+      <Modal
+        transparent
+        animationType="slide"
+        visible={groupPickerVisible}
+        onRequestClose={() => setGroupPickerVisible(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setGroupPickerVisible(false)}
+        >
+          <Pressable
+            onPress={() => {}}
+            style={{
+              backgroundColor: "#fff",
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingTop: 14,
+              paddingBottom: 28,
+              maxHeight: "75%",
+            }}
+          >
+            <View
+              style={{
+                alignSelf: "center",
+                width: 42,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: "#E3E7EE",
+                marginBottom: 10,
+              }}
+            />
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: 20,
+                marginBottom: 10,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: colors.text,
+                }}
+              >
+                Grup Seç
+              </Text>
+              <TouchableOpacity
+                onPress={() => setGroupPickerVisible(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: "#F2F4F8",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="close" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingGroups ? (
+              <View style={{ padding: 40, alignItems: "center" }}>
+                <ActivityIndicator color={colors.primaryDark} />
+              </View>
+            ) : availableGroups.length === 0 ? (
+              <View style={{ padding: 30, alignItems: "center" }}>
+                <Ionicons
+                  name="people-outline"
+                  size={32}
+                  color="#B7C1CD"
+                />
+                <Text
+                  style={{
+                    marginTop: 10,
+                    color: colors.muted,
+                    fontSize: 14,
+                    fontWeight: "600",
+                    textAlign: "center",
+                  }}
+                >
+                  Henüz hiç grubun yok. Önce bir grup oluştur.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={availableGroups}
+                keyExtractor={(g) => g.id}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
+                renderItem={({ item }) => {
+                  const isActive = item.id === pickedGroupId;
+                  return (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => handleSelectGroup(item)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: 14,
+                        paddingHorizontal: 14,
+                        marginBottom: 8,
+                        borderRadius: 16,
+                        backgroundColor: isActive
+                          ? "rgba(109,129,150,0.14)"
+                          : "#F7F9FC",
+                        borderWidth: isActive ? 1 : 0,
+                        borderColor: colors.primary,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor:
+                            (item as any).colorCode || colors.primary,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          marginRight: 12,
+                        }}
+                      >
+                        <Ionicons name="people" size={18} color="#fff" />
+                      </View>
+                      <Text
+                        style={{
+                          flex: 1,
+                          fontSize: 15,
+                          fontWeight: "700",
+                          color: colors.text,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+                      {isActive && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={colors.primaryDark}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import React, { useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-    Alert,
     Image,
     ImageBackground,
     KeyboardAvoidingView,
@@ -20,21 +21,32 @@ import {
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import { useAlert } from "../../context/AlertContext";
 import { useAuth } from "../../hooks/useAuth";
 import { configureGoogleSignin, getApiErrorMessage } from "../../utils/helpers";
+import {
+    RegisterFormData,
+    registerSchema,
+} from "../../utils/validationSchemas";
 
 export default function WelcomeAuthScreen({ navigation }: any) {
-  
   const { height, width } = useWindowDimensions();
   const { register, loginWithGoogle, loginWithApple } = useAuth();
+  const { showAlert } = useAlert();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError: setFormError,
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    mode: "onTouched",
+    defaultValues: { name: "", email: "", password: "" },
+  });
+
   const [showPassword, setShowPassword] = useState(false);
-
-  const [error, setError] = useState("");
-  const [registerLoading, setRegisterLoading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
 
@@ -45,79 +57,33 @@ export default function WelcomeAuthScreen({ navigation }: any) {
     configureGoogleSignin();
   }, []);
 
-const validate = () => {
-  // 1. İsim Kontrolü
-  if (!name.trim()) {
-    setError("İsim alanı boş bırakılamaz.");
-    return false;
-  }
+  const onRegister = handleSubmit(async (values) => {
+    try {
+      setSubmitError("");
 
-  // 2. E-posta Boşluk Kontrolü
-  if (!email.trim()) {
-    setError("E-posta alanı boş bırakılamaz.");
-    return false;
-  }
+      await register({
+        name: values.name.trim(),
+        email: values.email.trim(),
+        password: values.password,
+      });
 
-  // 3. E-posta Geçerlilik Kontrolü
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setError("Lütfen geçerli bir e-posta adresi giriniz.");
-      return false;
+      navigation.navigate("VerifyEmail", { email: values.email.trim() });
+    } catch (err: any) {
+      if (err?.response?.status === 400) {
+        setFormError("email", {
+          type: "manual",
+          message:
+            "Bu e-posta adresi zaten kullanımda olabilir. Lütfen başka bir e-posta deneyin veya giriş yapın.",
+        });
+      } else {
+        setSubmitError(getApiErrorMessage(err));
+      }
     }
-
-    // 4. Şifre Boşluk Kontrolü
-    if (!password) {
-      setError("Şifre alanı boş bırakılamaz.");
-      return false;
-    }
-
-    // 5. Şifre Güç (Regex) Kontrolü
-    // Kural: En az 1 büyük harf, 1 küçük harf, 1 rakam, 1 özel karakter ve minimum 6 karakter
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.,#]).{6,}$/;
-    if (!passwordRegex.test(password)) {
-      setError("Şifreniz en az 6 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter (., !, vs.) içermelidir.");
-      return false;
-    }
-
-    // Tüm kontrollerden geçerse sunucuya gitmeye hazır!
-    return true;
-  };
-
-  const onRegister = async () => {
-  // 1. Önce frontend'deki o güçlü kurallarımız (şifre, e-posta formatı) çalışacak
-  if (!validate()) return; // Eğer validate false dönerse, fonksiyon burada durur ve sunucuya gitmez.
-
-  try {
-    setError(""); // Ekranda kalmış eski hata mesajları varsa temizle
-    setRegisterLoading(true); // Yükleniyor (Loading) animasyonunu başlat
-
-    // 2. Sunucuya verileri sağındaki solundaki boşlukları temizleyerek gönder
-    await register({
-      name: name.trim(),
-      email: email.trim(),
-      password, // Şifreyi trimlemiyoruz, kullanıcı şifresinde bilerek boşluk kullanmış olabilir.
-    });
-
-    // 3. İşlem başarılı! Kullanıcıyı e-posta doğrulama ekranına yönlendir
-    navigation.navigate("VerifyEmail", { email: email.trim() });
-
-  } catch (err: any) {
-    // 4. Eğer validate'i geçip sunucudan 400 aldıysak (Büyük ihtimalle mail zaten kayıtlı demektir)
-    if (err?.response?.status === 400) {
-      setError("Bu e-posta adresi zaten kullanımda olabilir. Lütfen başka bir e-posta deneyin veya giriş yapın.");
-    } else {
-      // Sunucu çökmesi (500) veya internet kopması gibi diğer hatalar
-      const message = getApiErrorMessage(err);
-      setError(message);
-    }
-  } finally {
-    setRegisterLoading(false); // Başarılı da olsa hata da verse loading'i durdur
-  }
-};
+  });
 
   const onGooglePress = async () => {
     try {
-      setError("");
+      setSubmitError("");
       setGoogleLoading(true);
 
       await GoogleSignin.hasPlayServices();
@@ -127,13 +93,17 @@ const validate = () => {
         "data" in result ? result.data?.idToken : (result as any)?.idToken;
 
       if (!idToken) {
-        Alert.alert("Error", "Google id token could not be retrieved.");
+        showAlert({
+          title: "Hata",
+          message: "Google oturum bilgisi alınamadı.",
+          type: "danger",
+        });
         return;
       }
 
       await loginWithGoogle(idToken);
     } catch (error: any) {
-      setError(error?.message || "Google sign in failed.");
+      setSubmitError(error?.message || "Google ile giriş başarısız oldu.");
     } finally {
       setGoogleLoading(false);
     }
@@ -141,12 +111,16 @@ const validate = () => {
 
   const onApplePress = async () => {
     if (Platform.OS !== "ios") {
-      Alert.alert("Kullanılamıyor", "Apple oturum açma yalnızca iOS'ta kullanılabilir.");
+      showAlert({
+        title: "Kullanılamıyor",
+        message: "Apple oturum açma yalnızca iOS'ta kullanılabilir.",
+        type: "info",
+      });
       return;
     }
 
     try {
-      setError("");
+      setSubmitError("");
       setAppleLoading(true);
 
       const credential = await AppleAuthentication.signInAsync({
@@ -160,7 +134,11 @@ const validate = () => {
       const authorizationCode = (credential as any).authorizationCode;
 
       if (!idToken) {
-        Alert.alert("Error", "Apple identity token could not be retrieved.");
+        showAlert({
+          title: "Hata",
+          message: "Apple kimlik bilgisi alınamadı.",
+          type: "danger",
+        });
         return;
       }
 
@@ -184,17 +162,22 @@ const validate = () => {
       await loginWithApple(applePayload);
     } catch (error: any) {
       if (error?.code === "ERR_REQUEST_CANCELED") return;
-      console.error("Apple login error details:", {
-        status: error?.response?.status,
-        message: error?.response?.data?.message,
-        fullError: error?.message,
-      });
-      const errorMessage = error?.response?.data?.message || error?.message || "Apple sign in failed.";
-      setError(errorMessage);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Apple ile giriş başarısız oldu.";
+      setSubmitError(errorMessage);
     } finally {
       setAppleLoading(false);
     }
   };
+
+  const firstFieldError =
+    errors.name?.message ||
+    errors.email?.message ||
+    errors.password?.message ||
+    "";
+  const combinedError = submitError || firstFieldError;
 
   return (
     <View style={{ flex: 1, width, height }}>
@@ -228,45 +211,63 @@ const validate = () => {
                     }}
                   />
 
-                  <ErrorMessage message={error} />
+                  <ErrorMessage message={combinedError} />
 
                   <View style={styles.form}>
-                    <AppInput
-                      value={name}
-                      onChangeText={setName}
-                      placeholder="İsminizi girin"
-                      keyboardType="default"
-                      autoCapitalize="words"
-                      autoCorrect={false}
+                    <Controller
+                      control={control}
+                      name="name"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <AppInput
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="İsminizi girin"
+                          keyboardType="default"
+                          autoCapitalize="words"
+                          autoCorrect={false}
+                        />
+                      )}
                     />
 
-                    <AppInput
-                      value={email}
-                      onChangeText={setEmail}
-                      placeholder="E-posta"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
+                    <Controller
+                      control={control}
+                      name="email"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <AppInput
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="E-posta"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      )}
                     />
-                    
-                    <AppInput
-                      value={password}
-                      onChangeText={setPassword}
-                      placeholder="Şifre"
-                      secureTextEntry={!showPassword}
-                      keyboardType="default"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      showPasswordToggle
-                      onPasswordToggle={() => setShowPassword(!showPassword)}
-                      isPasswordVisible={showPassword}
+
+                    <Controller
+                      control={control}
+                      name="password"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <AppInput
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="Şifre"
+                          secureTextEntry={!showPassword}
+                          keyboardType="default"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          showPasswordToggle
+                          onPasswordToggle={() => setShowPassword(!showPassword)}
+                          isPasswordVisible={showPassword}
+                        />
+                      )}
                     />
 
                     <View style={{ marginTop: 8 }}>
                       <AppButton
                         title="Hesap Oluştur"
                         onPress={onRegister}
-                        loading={registerLoading}
+                        loading={isSubmitting}
                       />
                     </View>
 

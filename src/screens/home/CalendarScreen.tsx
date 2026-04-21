@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     ImageBackground,
     Pressable,
     SafeAreaView,
@@ -16,18 +15,19 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 
-// YENİ: Artık sadece seçili grubu değil, tüm takvimi getiren fonksiyonu kullanıyoruz
 import { getMyNotifications } from "@/src/api/notification";
 import { getPlaceCategoryLabel } from "@/src/utils/placeCategories";
 import { getMyCalendarPlaces } from "../../api/places";
+import { SkeletonListItem } from "../../components/common/Skeleton";
+import { useAlert } from "../../context/AlertContext";
 import { useAuth } from "../../hooks/useAuth";
 import { getApiErrorMessage } from "../../utils/helpers";
 
 LocaleConfig.locales["tr"] = {
     monthNames: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
     monthNamesShort: ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"],
-    dayNames: [ "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi","Pazar"],
-    dayNamesShort: [ "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt" ,"Paz"],
+    dayNames: ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"],
+    dayNamesShort: ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"],
     today: "Bugün"
 };
 LocaleConfig.defaultLocale = "tr";
@@ -71,6 +71,7 @@ const getWeatherDetails = (weatherCode: number) => {
 
 export default function CalendarScreen({ navigation }: any) {
     const { logout } = useAuth();
+    const { showAlert } = useAlert();
     const [places, setPlaces] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -166,7 +167,11 @@ export default function CalendarScreen({ navigation }: any) {
             const placesArray = Array.isArray(data) ? data : data?.data || [];
             setPlaces(placesArray);
         } catch (err: any) {
-            Alert.alert("Hata", getApiErrorMessage(err));
+            showAlert({
+                title: "Hata",
+                message: getApiErrorMessage(err),
+                type: "danger",
+            });
         } finally {
             setLoading(false);
         }
@@ -346,11 +351,11 @@ export default function CalendarScreen({ navigation }: any) {
                         </View>
 
                         {loading ? (
-                            <ActivityIndicator
-                                size="large"
-                                color="#2F7E8D"
-                                style={{ marginTop: 50 }}
-                            />
+                            <View style={{ marginHorizontal: 20, marginTop: 20, gap: 10 }}>
+                                <SkeletonListItem />
+                                <SkeletonListItem />
+                                <SkeletonListItem />
+                            </View>
                         ) : (
                             <ScrollView
                                 showsVerticalScrollIndicator={false}
@@ -370,6 +375,7 @@ export default function CalendarScreen({ navigation }: any) {
                                     }}
                                 >
                                     <Calendar
+                                        firstDay={1}
                                         onDayPress={(day: any) => setSelectedDate(day.dateString)}
                                         theme={{
                                             backgroundColor: "#234f78",
@@ -395,10 +401,14 @@ export default function CalendarScreen({ navigation }: any) {
                                             const isSelected = selectedDate === date.dateString;
 
                                             if (dayPlaces.length > 0) {
-                                                const firstEvent = dayPlaces[0];
-                                                const isVisited =
-                                                    firstEvent.status === 2 ||
-                                                    firstEvent.status === "Visited";
+                                                const visitedEvent = dayPlaces.find(
+                                                    (p) =>
+                                                        p.status === 2 ||
+                                                        p.status === "Visited"
+                                                );
+                                                const firstEvent =
+                                                    visitedEvent || dayPlaces[0];
+                                                const isVisited = !!visitedEvent;
                                                 const groupColor =
                                                     firstEvent.groupColor || "#2F7E8D";
                                                 const darkBorderColor = darkenColor(
@@ -428,8 +438,8 @@ export default function CalendarScreen({ navigation }: any) {
                                                             {isVisited ? (
                                                                 <View
                                                                     style={{
-                                                                        width: 31,
-                                                                        height: 31,
+                                                                        width: 32,
+                                                                        height: 32,
                                                                         borderRadius: 10,
                                                                         backgroundColor: groupColor,
                                                                         alignItems: "center",
@@ -449,25 +459,37 @@ export default function CalendarScreen({ navigation }: any) {
                                                             ) : (
                                                                 <View
                                                                     style={{
-                                                                        width: 34,
-                                                                        height: 34,
+                                                                        width: 36,
+                                                                        height: 36,
                                                                         alignItems: "center",
                                                                         justifyContent: "center"
                                                                     }}
                                                                 >
-                                                                    <Ionicons
-                                                                        name="heart"
-                                                                        size={37}
-                                                                        color={groupColor}
-                                                                        style={{ position: "absolute" }}
-                                                                    />
+                                                                    <View
+                                                                        style={{
+                                                                            position: "absolute",
+                                                                            top: 0,
+                                                                            left: 0,
+                                                                            right: 0,
+                                                                            bottom: 0,
+                                                                            alignItems: "center",
+                                                                            justifyContent: "center"
+                                                                        }}
+                                                                    >
+                                                                        <Ionicons
+                                                                            name="heart"
+                                                                            size={38}
+                                                                            color={groupColor}
+                                                                        />
+                                                                    </View>
                                                                     <Text
                                                                         style={{
                                                                             color: "white",
                                                                             fontWeight: "bold",
                                                                             fontSize: 13,
                                                                             zIndex: 1,
-                                                                            marginTop: -2
+                                                                            marginTop: 2,
+                                                                            left: 1
                                                                         }}
                                                                     >
                                                                         {date.day}
@@ -517,13 +539,11 @@ export default function CalendarScreen({ navigation }: any) {
                                             );
                                         }}
                                     />
-                                </View>
 
-                                <View style={styles.detailsCard}>
-                                    <View style={styles.legendRow}>
+                                    <View style={styles.calendarLegendRow}>
                                         <View style={styles.legendItem}>
                                             <View style={styles.legendVisitedDot} />
-                                            <Text style={styles.legendText}>Gidilenler</Text>
+                                            <Text style={styles.calendarLegendText}>Gidilenler</Text>
                                         </View>
 
                                         <View style={styles.legendItem}>
@@ -532,12 +552,14 @@ export default function CalendarScreen({ navigation }: any) {
                                                 size={18}
                                                 color="#ff5656"
                                             />
-                                            <Text style={styles.legendText}>
+                                            <Text style={styles.calendarLegendText}>
                                                 Planlar
                                             </Text>
                                         </View>
                                     </View>
+                                </View>
 
+                                <View style={styles.detailsCard}>
                                     <View style={styles.detailsHeader}>
                                         <Text style={styles.detailsDate}>
                                             {formattedSelectedDate}
@@ -610,7 +632,7 @@ export default function CalendarScreen({ navigation }: any) {
                                                             <Ionicons
                                                                 name={
                                                                     isVisited
-                                                                        ? "checkmark-done"
+                                                                        ? "location"
                                                                         : "heart"
                                                                 }
                                                                 size={24}
@@ -719,7 +741,7 @@ export default function CalendarScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
     detailsCard: {
-        marginTop: 16,
+        marginTop: 10,
         marginHorizontal: 20,
         backgroundColor: "#9ab8d4",
         borderRadius: 24,
@@ -737,6 +759,18 @@ const styles = StyleSheet.create({
         gap: 18,
         marginBottom: 18
     },
+    calendarLegendRow: {
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 22,
+        paddingTop: 6,
+        paddingBottom: 14,
+        paddingHorizontal: 12,
+        backgroundColor: "#234f78",
+        borderTopWidth: 1,
+        borderTopColor: "rgba(255,255,255,0.08)"
+    },
     legendItem: {
         flexDirection: "row",
         alignItems: "center",
@@ -746,18 +780,23 @@ const styles = StyleSheet.create({
         width: 14,
         height: 14,
         borderRadius: 5,
-        backgroundColor: "#000000"
+        backgroundColor: "#ede6e6"
     },
     legendText: {
         fontSize: 13,
         color: "#5c697b",
         fontWeight: "600"
     },
+    calendarLegendText: {
+        fontSize: 13,
+        color: "#E6ECF5",
+        fontWeight: "700"
+    },
     detailsHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 16
+        marginBottom: 12
     },
     detailsDate: {
         flex: 1,
